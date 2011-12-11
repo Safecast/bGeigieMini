@@ -1,0 +1,334 @@
+/* Chibi for Arduino, Example 4 
+This is supposed to be the code to run the RF terminal for the bGeigie-mini.
+It is connected to the computer and dump data through serial com.
+*/
+
+#include <chibi.h>
+
+#define ENABLE_LCD 1
+#define DIM_TIME 60000
+#define DIM_LEN 1000
+
+#if ENABLE_LCD
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <LiquidCrystal.h>
+#endif
+
+#define RX_ADDR 0x1234
+#define CHANNEL 20
+
+static const int chipSelect = 10;
+static const int radioSelect = A3;
+
+#if ENABLE_LCD
+// initialize the library with the numbers of the interface pins
+LiquidCrystal lcd(2, 3, 4, 5,6,7);
+// pin layout
+int backlightPin = 9;
+int buzzerPin = 8;
+int pinLightSensor = 0;
+int pinTiltSensor = 15;
+
+// status variables
+unsigned long CPM;
+unsigned long total;
+double uSh_pre = 0;
+char rad_flag = 'A';
+char gps_flag = 'A';
+
+// link status variable
+char lnk_flag = 'X';
+long timeout = 15000;
+long last_msg_time = 0;
+
+// screen variables
+float brightness;
+unsigned long dimmerTimer;
+int dimmed;
+int tilt_pre;
+#endif
+
+/**************************************************************************/
+// Initialize
+/**************************************************************************/
+void setup()
+{  
+
+#if ENABLE_LCD
+  // set pins
+  pinMode(backlightPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(pinTiltSensor, INPUT);
+  
+  // set brightness
+  setBrightness(1.0f);
+  dimmed = 0;
+  tilt_pre = 0;
+  
+  // set up the LCD's number of columns and rows: 
+  lcd.begin(8, 2);
+
+  // Print a message to the LCD.
+  lcd.print("Welcome!");
+  buzz(4000, 2, 50, 150);
+  delay(2000);
+#endif
+
+  // Initialize the chibi command line and set the speed to 9600 bps
+  Serial.begin(9600);
+
+  Serial.println("Hello.");
+
+  // Initialize the chibi wireless stack
+  chibiInit();
+
+  Serial.println("Init chibi done. Now go. good.");
+
+  Serial.println("All good.");
+  
+  // set address
+  chibiSetShortAddr(RX_ADDR);
+  Serial.print("Just set address to ");
+  Serial.println(chibiGetShortAddr());
+
+  // set channel number
+  chibiSetChannel(CHANNEL);
+  Serial.print("Just set channel to ");
+  Serial.println(CHANNEL);
+
+}
+
+/**************************************************************************/
+// Loop
+/**************************************************************************/
+void loop()
+{
+  // Check if any data was received from the radio. If so, then handle it.
+  if (chibiDataRcvd() == true)
+  { 
+    int len, rssi, src_addr;
+    byte buf[150] = {0};  // this is where we store the received data
+    char line[9] = {0};
+    
+    // retrieve the data
+    len = chibiGetData(buf);
+    
+    // Print out the message
+    Serial.println((char *)buf);
+   
+#if ENABLE_LCD
+
+    // set time of message received
+    last_msg_time = millis();
+    
+    // set the link flag to OK
+    lnk_flag = 'O';
+
+    // first get CPM and Dose
+    int L = strlen((char *)buf);
+
+    // extract the data from the sentence received
+    extract_data((char *)buf, L);
+
+    // compute dose rate
+    double uSh = CPM/350.0;
+
+    // compute dose
+    double dose = total/350.0/60.0;
+    
+    // dose rate on first row
+    uShStr(CPM, line, 350);
+    lcd.setCursor(0, 0);
+    lcd.print(line);
+
+    // connection info on the 2nd row
+    lcd.setCursor(0, 1);
+    line[0] = 'R';
+    line[1] = rad_flag;
+    line[2] = ' ';
+    line[3] = 'G';
+    line[4] = gps_flag;
+    line[5] = ' ';
+    line[6] = 'C';
+    line[7] = lnk_flag;
+    line[8] = NULL;
+    lcd.print(line);
+
+    if (uSh_pre < 0.5 && uSh >= 0.5)
+      buzz(2000, 2, 500, 500);
+    else if (uSh_pre < 1.0 && uSh >= 1.0)
+      buzz(2000, 4, 250, 250);
+    else if (uSh_pre < 3.0 && uSh >= 3.0)
+      buzz(2000, 8, 125, 125);
+    else if (uSh_pre < 5.0 && uSh >= 5.0)
+      buzz(2000, 16, 65, 65);
+
+    // update uSievert/hour memory
+    uSh_pre = uSh;
+
+  } else {
+
+    long now = millis();
+    if ((lnk_flag == 'O') && (now - last_msg_time > timeout))
+    {
+      // alarm
+      buzz(4000, 1, 1000, 1);
+      // update link status
+      lnk_flag = 'X';
+      // print error message
+      char line[9] = {0};
+      strcpy(line, "NO LINK*");
+      lcd.setCursor(0, 1);
+      lcd.print(line);
+    }
+#endif
+  }
+
+#if ENABLE_LCD
+  controlBrightness();
+#endif
+}
+
+#if ENABLE_LCD
+
+void extract_data(char *buf, int L)
+{
+  int i;
+  char field[L];
+  char *cpm;
+  char *tot;
+  char *r_flag;
+  char *g_flag;
+  
+  // jumping 32 characters to arrive at CPM field
+  strcpy(field, (char *)buf + 32);
+  
+  cpm = strtok(field, ",");   // cpm field
+  strtok(NULL, ",");          // jumping bin count
+  tot= strtok(NULL, ",");  // total count
+  r_flag = strtok(NULL, ","); // cpm valid flag
+  for (i=0 ; i < 5 ; i++)
+    strtok(NULL, ",");
+  g_flag = strtok(NULL, ","); // gps validity flag
+
+  CPM = strtoul(cpm, NULL, 10);
+  total = strtoul(tot, NULL, 10);
+
+  /* buzz if rad flag becomes not valid */
+  if (rad_flag == 'A' && r_flag[0] == 'V')
+    buzz(4000, 4, 100, 150);
+  else if (rad_flag == 'V' && r_flag[0] == 'A')
+    buzz(4000, 1, 50, 1);
+  rad_flag = r_flag[0];
+
+  /* buzz if gps flag becomes not valid */
+  if (gps_flag == 'A' && g_flag[0] == 'V')
+    buzz(8000, 4, 100, 150);
+  else if (gps_flag == 'V' && g_flag[0] == 'A')
+    buzz(8000, 1, 50, 0);
+  gps_flag = g_flag[0];
+}
+
+void buzz(int f, int p, int t_up, int t_dw)
+{
+  if (p == 0)
+    return;
+
+  while (p > 0)
+  {
+    tone(buzzerPin, f);
+    delay(t_up);
+    noTone(buzzerPin);
+    p--;
+    if (p > 0)
+      delay(t_dw);
+  }
+}
+
+void uShStr(unsigned long CPM, char *line, int F)
+{
+  int d;
+  int i = CPM/F;
+  int p = 0;
+  int n;
+
+  // dose rate on first row
+  if (i < 10)
+  {
+    n = 1;
+    d = (int)(((float)CPM/(float)F - i)*1000);
+    if (d < 100)
+      p = 1;
+    else if (d < 10)
+      p = 2;
+  } else if (i < 100) {
+    n = 2;
+    d = (int)(((float)CPM/(float)F - i)*100);
+    if (d < 10)
+      p = 1;
+  } else if (i < 1000) {
+    n = 3;
+    d = (int)(((float)CPM/(float)F - i)*10);
+  } else {
+    strcpy(line, "*DANGER*");
+    return;
+  }
+  
+  if (p == 2)
+    sprintf(line, "%d.00%duSh", i, d);
+  else if (p == 1)
+    sprintf(line, "%d.0%duSh", i, d);
+  else
+    sprintf(line, "%d.%duSh", i, d);
+  return;
+}
+
+void setBrightness(float c)
+{
+  analogWrite(backlightPin, (int)(c*255));
+}
+
+void controlBrightness()
+{
+  float dim_coeff;
+  int light, tilt;
+  unsigned long delta_t = millis() - dimmerTimer;
+
+  // read light and tilt sensors
+  light = analogRead(pinLightSensor);
+  tilt = digitalRead(pinTiltSensor);
+
+  // check if dim reset
+  if (tilt != tilt_pre)
+  {
+    dimmerTimer = millis();
+    dimmed = 0;
+  }
+  tilt_pre = tilt;
+
+  // set a priori brightness
+  dim_coeff = light/1023.0;
+  
+  // now handle dimming
+  if (!dimmed)
+  {
+    if (delta_t > DIM_TIME && delta_t < DIM_TIME + DIM_LEN)
+    {
+      dim_coeff *= (1.0 - ((float)delta_t - (float)DIM_TIME)/(float)DIM_LEN);
+    }
+    else if (delta_t >= DIM_TIME + DIM_LEN)
+    {
+      dim_coeff = 0.0;
+      dimmed = 1;
+    }
+  } else {
+    dim_coeff = 0.0;
+  }
+
+  setBrightness(dim_coeff);
+}
+
+#endif
+
