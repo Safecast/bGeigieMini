@@ -47,16 +47,12 @@ int GPS::available()
 // Return the millisecond microprocessor time of when data was received
 unsigned long GPS::age()
 {
-  unsigned long stop_time = millis();
+  unsigned long now = millis();
   
-  if (start_time >= stop_time)
-  {
-    return start_time - stop_time;
-  }
+  if (now >= _rx_time)
+    return now - _rx_time;
   else
-  {
-    return (ULONG_MAX - (start_time - stop_time));
-  }
+    return (ULONG_MAX - _rx_time + now);
 }
 
 // Update routine
