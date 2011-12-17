@@ -44,7 +44,6 @@ void HardwareCounter::start()
   // hardware counter setup ( refer atmega168.pdf chapter 16-bit counter1)
   TCCRnA=0;     // reset timer/countern control register A
   TCCRnB=0;     // reset timer/countern control register A
-  TCNTn=0;      // counter value = 0
   // set timer/counter1 hardware as counter , counts events on pin Tn ( arduino pin 5 on 168, pin 47 on Mega )
   // normal mode, wgm10 .. wgm13 = 0
   sbi (TCCRnB ,CS10);  // External clock source on Tn pin. Clock on rising edge.
@@ -54,6 +53,10 @@ void HardwareCounter::start()
 
   // set start time
   _start_time = millis();
+
+  // The counter needs to be reset after
+  // the counter is setup (This is important)!
+  TCNTn=0;      // counter value = 0
 
   // set count to zero (optional)
   _count = 0;
