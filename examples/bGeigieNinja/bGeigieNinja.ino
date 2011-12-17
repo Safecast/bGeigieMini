@@ -1,7 +1,33 @@
-/* Chibi for Arduino, Example 4 
-This is supposed to be the code to run the RF terminal for the bGeigie-mini.
-It is connected to the computer and dump data through serial com.
+/*
+   The bGeigie-Ninja
+   This is the firmware for the remote display monitor for the bGeigie-mini.
+
+   Copyright (c) 2011, Robin Scheibler aka FakuFaku
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the <organization> nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+   ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+   DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+   (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+   ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #include <chibi.h>
 
@@ -19,7 +45,6 @@ It is connected to the computer and dump data through serial com.
 #define RX_ADDR 0x1234
 #define CHANNEL 20
 
-static const int chipSelect = 10;
 static const int radioSelect = A3;
 
 #if ENABLE_LCD
@@ -55,6 +80,11 @@ int tilt_pre;
 /**************************************************************************/
 void setup()
 {  
+  // this is needed to ensure the uC is always a master on SPI
+  pinMode(SS, OUTPUT);
+  // the radio chip select is also define in chibiArduino library
+  // but let's make it explicit
+  pinMode(radioSelect, OUTPUT);
 
 #if ENABLE_LCD
   // set pins
