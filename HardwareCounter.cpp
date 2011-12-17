@@ -29,6 +29,7 @@
 */
 
 #include "HardwareCounter.h"
+#include <limits.h>
 
 // Constructor
 HardwareCounter::HardwareCounter(long delay)
@@ -72,7 +73,13 @@ unsigned int HardwareCounter::count()
 // This indicates when the count over the determined period is over
 int HardwareCounter::available()
 {
-  return (mills() - _start_time >= _delay)
+  // get current time
+  unsigned long now = millis();
+  // do basic check for millis overflow
+  if (now >= _start_time)
+    return (now - _start_time >= _delay);
+  else
+    return (ULONG_MAX + now - _start_time >= _delay);
 }
 
 

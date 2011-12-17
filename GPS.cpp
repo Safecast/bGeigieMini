@@ -28,50 +28,48 @@
 */
 
 #include "GPS.h"
+#include <limits.h>
 
 // Constructor
-GPS::GPS(HardwareSerial serial)
+// we need to provide the line buffer for RAM efficiency
+GPS::GPS(HardwareSerial *serial, char *line)
 {
   _serial = serial; // Hardware Serial connection, supposed to be initialized
-  i = 0;            // character counter initialization
-  _updating = 1;    // set to updating until we receive something
+  _index = 0;            // character counter initialization
+  _updating = 0;    // not updating when starting (non-blocking)
+  _line = line;     // the character array for serial com buffering
 }
 
 // Availability indicator
 int GPS::available()
 {
-  // location available when not uploading
-  return _updating;
+  // location available when not updating
+  return !_updating;
 }
 
 // Return the millisecond microprocessor time of when data was received
 unsigned long GPS::age()
 {
-  unsigned long stop_time = millis();
+  unsigned long now = millis();
   
-  if (start_time >= stop_time)
-  {
-    return start_time - stop_time;
-  }
+  if (now >= _rx_time)
+    return now - _rx_time;
   else
-  {
-    return (ULONG_MAX - (start_time - stop_time));
-  }
+    return (ULONG_MAX - _rx_time + now);
 }
 
 // Update routine
 void GPS::update()
 {
 
-  char tmp[25];
   char *tok[SYM_SZ] = {0};
   int j = 0;
 
-  while (_serial.available())
+  while (_serial->available())
   {
     if (_index < LINE_SZ)
     {
-      _line[_index] = _serial.read();
+      _line[_index] = _serial->read();
       if (_line[_index] == '\n')
       {
         // set timestamp
@@ -84,7 +82,7 @@ void GPS::update()
         _index=0;
 
         // dump the raw GPS data
-        //_serial.print(_line);
+        //_serial->print(_line);
 
         // tokenize line
         tok[j] = strtok(_line, ",");
@@ -127,7 +125,7 @@ void GPS::update()
 }
 
 // Compute checksum of input array
-static char GPS::checksum(char *s, int N)
+char GPS::checksum(char *s, int N)
 {
   int i = 0;
   char chk = s[0];
