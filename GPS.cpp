@@ -38,6 +38,9 @@ GPS::GPS(HardwareSerial *serial, char *line)
   _index = 0;            // character counter initialization
   _updating = 0;    // not updating when starting (non-blocking)
   _line = line;     // the character array for serial com buffering
+
+  // set initial gps data to all zero
+  memset((void *)&_gps_data, 0, sizeof(gps_t));
 }
 
 // Availability indicator
