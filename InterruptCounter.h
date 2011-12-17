@@ -1,5 +1,5 @@
 /*
-   Simple library for Arduino implementing a hardware counter
+   Simple library for Arduino implementing a counter using the interrupt pin
    for a Geigier counter for example
 
    Copyright (c) 2011, Robin Scheibler aka FakuFaku

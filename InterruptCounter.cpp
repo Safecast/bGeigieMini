@@ -1,5 +1,5 @@
 /*
-   Simple library for Arduino implementing a hardware counter
+   Simple library for Arduino implementing a counter using the interrupt pin
    for a Geigier counter for example
 
    Copyright (c) 2011, Robin Scheibler aka FakuFaku
@@ -46,7 +46,7 @@ void interruptCounterSetup(int interrupt_pin, unsigned long delay)
   _interrupt_pin = interrupt_pin;
   _delay = delay;
   _count = 0;
-  attachInterrupt(0, interrupt_routine, RISING);
+  attachInterrupt(_interrupt_pin, interrupt_routine, RISING);
 }
 
 // call this to start the counter
