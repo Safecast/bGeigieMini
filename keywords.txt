@@ -1,0 +1,32 @@
+#######################################
+# Syntax Coloring Map For SafecastBGeigie
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+# HardwareCounter
+KEYWORD1 HardwareCounter
+
+# GPS
+KEYWORD1 date_time_t
+KEYWORD1 gps_t
+KEYWORD1 GPS
+
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+KEYWORD2 interruptCounterSetup
+KEYWORD2 interruptCounterReset
+KEYWORD2 interruptCounterAvailable
+KEYWORD2 interruptCounterCount
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+
