@@ -77,7 +77,7 @@ char hdr[6] = "BMRDD";  // header for sentence
 char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
-char fileHeader[] = "# NEW LOG\n# format=1.1.1\n";
+char fileHeader[] = "# NEW LOG\n# format=1.2.0\n";
  
 // State variables
 int gps_init_acq = 0;
