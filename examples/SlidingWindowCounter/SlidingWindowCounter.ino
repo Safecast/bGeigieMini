@@ -14,16 +14,14 @@
 
 #define DELAY 5000
 #define NBINS 12
+#define TIMER1 5    // the timer1 pin on the 328p
 
-static HardwareCounter counter(DELAY);  // The hardware counter object
-static unsigned long bins[NBINS] = {0}; // the sliding window
-static int index = 0;                   // the current bin index
+static HardwareCounter counter(TIMER1, DELAY);  // The hardware counter object
+static unsigned long bins[NBINS] = {0};         // the sliding window
+static int index = 0;                           // the current bin index
 
 void setup()
 {
-
-  //
-  pinMode(5, INPUT);
 
   // start serial
   Serial.begin(9600);

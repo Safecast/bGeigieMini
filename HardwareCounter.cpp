@@ -32,9 +32,12 @@
 #include <limits.h>
 
 // Constructor
-HardwareCounter::HardwareCounter(long delay)
+HardwareCounter::HardwareCounter(int timer_pin, long delay)
 {
+  // register delay
   _delay = delay;
+  // set pin as digital input
+  pinMode(timer_pin, INPUT);
 }
 
 // call this to start the counter

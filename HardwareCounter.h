@@ -62,7 +62,7 @@ class HardwareCounter
 {
   // public
   public:
-    HardwareCounter(long delay);
+    HardwareCounter(int timer_pin, long delay);
     void start();
     int available();
     unsigned int count();
