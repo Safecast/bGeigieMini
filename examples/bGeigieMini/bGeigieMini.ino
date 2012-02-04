@@ -35,6 +35,8 @@
 #include <GPS.h>
 #include <InterruptCounter.h>
 
+#include "version.h"
+
 #define TIME_INTERVAL 5000
 #define NX 12
 #define DEST_ADDR 0x1234
@@ -46,6 +48,15 @@
 #define VOID      'V'          // indicates geiger data not ready (void)
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
+
+// defines for status bits
+#define SET_STAT(var, pos) var |= pos
+#define UNSET_STAT(var, pos) var &= ~pos
+#define CHECK_STAT(var, pos) (var & pos)
+#define RAD_STAT 1
+#define GPS_STAT 2
+#define SD_STAT 4
+#define WR_STAT 8
 
 static const int chipSelect = 10;
 static const int radioSelect = A3;
@@ -78,6 +89,18 @@ char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 char fileHeader[] = "# NEW LOG\n# format=1.2.0\n";
+
+// Status vector
+// 8bits
+// 7: Reserved
+// 6: Reserved
+// 5: Reserved
+// 4: Reserved
+// 3: last write to SD card successful
+// 2: SD card operational
+// 1: GPS device operational
+// 0: Radiation averaging status
+static byte status = 0;
  
 // State variables
 int gps_init_acq = 0;
@@ -136,20 +159,16 @@ void setup()
   Serial.print(tmp);
   
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
-    // don't do anything more:
-    int printOnce = 1;
-    while(1) 
-    {
-      if (printOnce) {
-        printOnce = 0;
-        strcpy_P(tmp, msg2);
-        Serial.print(tmp);
-      }
-    }
+  if (SD.begin(chipSelect))
+    SET_STAT(status, SD_STAT);
+  if (!CHECK_STAT(status, SD_STAT))
+  {
+    strcpy_P(tmp, msg2);
+    Serial.println(tmp);
+  } else {
+    strcpy_P(tmp, msg3);
+    Serial.print(tmp);
   }
-  strcpy_P(tmp, msg3);
-  Serial.print(tmp);
 
   // set initial state of Geiger to void
   geiger_status = VOID;
@@ -184,6 +203,24 @@ void loop()
     {
       unsigned long cpm=0, cpb=0;
       byte line_len;
+
+      // Check the SD card status and try to start it
+      // if it failed previously
+      if (!CHECK_STAT(status, SD_STAT))
+      {
+        strcpy_P(tmp, msg1);
+        Serial.print(tmp);
+        if (SD.begin(chipSelect)) 
+          SET_STAT(status, SD_STAT);
+        if (CHECK_STAT(status, SD_STAT))
+        {
+          strcpy_P(tmp, msg2);
+          Serial.print(tmp);
+        } else {
+          strcpy_P(tmp, msg3);
+          Serial.print(tmp);
+        }
+      }
 
       // obtain the count in the last bin
       cpb = interruptCounterCount();
