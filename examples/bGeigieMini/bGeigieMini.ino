@@ -322,18 +322,10 @@ void loop()
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
-          Serial.println(line);
           dataFile.print(line);
           dataFile.print("\n");
           dataFile.close();
 
-  #if TX_ENABLED
-          // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-  #endif
         }
         else
         {
@@ -343,20 +335,18 @@ void loop()
         }   
         
         // write to backup file as well
-        strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(line);
-          dataFile.print("\n");
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }
+        write_to_file(ext_bak, line);
+
+        // Printout line
+        Serial.println(line);
+
+  #if TX_ENABLED
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+  #endif
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
@@ -365,10 +355,26 @@ void loop()
   }
 }
 
-/**************************************************************************/
-/*!
+/* write a line to filename (global variable) with given extension to SD card */
+void write_to_file(char *ext, char *line)
+{
+  // write to backup file as well
+  strcpy(filename+8, ext);
+  dataFile = SD.open(filename, FILE_WRITE);
+  if (dataFile)
+  {
+    dataFile.print(line);
+    dataFile.print("\n");
+    dataFile.close();
+  }
+  else
+  {
+    char tmp[40];
+    strcpy_P(tmp, msg4);
+    Serial.print(tmp);
+  }
+}
 
-*/
 /**************************************************************************/
 byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsigned long cpb)
 {
