@@ -47,6 +47,8 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+#define JAPAN_POST 1
+
 static const int chipSelect = 10;
 static const int radioSelect = A3;
 static const int sdPwr = 4;
@@ -285,18 +287,10 @@ void loop()
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
-          Serial.println(line);
           dataFile.print(line);
           dataFile.print("\n");
           dataFile.close();
 
-  #if TX_ENABLED
-          // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-  #endif
         }
         else
         {
@@ -306,20 +300,18 @@ void loop()
         }   
         
         // write to backup file as well
-        strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(line);
-          dataFile.print("\n");
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }
+        write_to_file(ext_bak, line);
+
+        // Printout line
+        Serial.println(line);
+
+  #if TX_ENABLED
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+  #endif
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
@@ -328,10 +320,26 @@ void loop()
   }
 }
 
-/**************************************************************************/
-/*!
+/* write a line to filename (global variable) with given extension to SD card */
+void write_to_file(char *ext, char *line)
+{
+  // write to backup file as well
+  strcpy(filename+8, ext);
+  dataFile = SD.open(filename, FILE_WRITE);
+  if (dataFile)
+  {
+    dataFile.print(line);
+    dataFile.print("\n");
+    dataFile.close();
+  }
+  else
+  {
+    char tmp[40];
+    strcpy_P(tmp, msg4);
+    Serial.print(tmp);
+  }
+}
 
-*/
 /**************************************************************************/
 byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsigned long cpb)
 {
@@ -402,3 +410,42 @@ void pullDevId()
   dev_id[BMRDD_ID_LEN] = NULL;
 }
 
+#if JAPAN_POST
+/* 
+ * Truncate the latitude and longitude according to
+ * Japan Post requirements
+ * 
+ * Parameters:
+ * str: a fixed-point number represented as a string
+ * c  : the last c fractional digits are dropped
+ * b  : the last b bit of the last fractional digit are dropped
+ */
+void truncate(char *str, int c, int b)
+{
+  int s, e;
+  int B;
+
+  // find decimal point
+  s = 0;
+  while (str[s] != '.')
+    s++;
+
+  // find the end of the string
+  e = s;
+  while (e != NULL)
+    e++;
+
+  // set end of string c characters before
+  e -= c;
+  str[e] = NULL;
+
+  // convert last fractionnal digit to byte
+  B = atoi(str[e-1]);
+  B = (B >> b) << b;
+  if (b < 0)
+    b = 0;
+  else if (b > 9)
+    b = 9;
+  str[e-1] = (char)('0' + B);
+}
+#endif /* JAPAN_POST */
