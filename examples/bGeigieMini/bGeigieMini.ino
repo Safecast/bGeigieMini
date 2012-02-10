@@ -47,6 +47,8 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+#define JAPAN_POST 1
+
 static const int chipSelect = 10;
 static const int radioSelect = A3;
 static const int sdPwr = 4;
@@ -402,3 +404,42 @@ void pullDevId()
   dev_id[BMRDD_ID_LEN] = NULL;
 }
 
+#if JAPAN_POST
+/* 
+ * Truncate the latitude and longitude according to
+ * Japan Post requirements
+ * 
+ * Parameters:
+ * str: a fixed-point number represented as a string
+ * c  : the last c fractional digits are dropped
+ * b  : the last b bit of the last fractional digit are dropped
+ */
+void truncate(char *str, int c, int b)
+{
+  int s, e;
+  int B;
+
+  // find decimal point
+  s = 0;
+  while (str[s] != '.')
+    s++;
+
+  // find the end of the string
+  e = s;
+  while (e != NULL)
+    e++;
+
+  // set end of string c characters before
+  e -= c;
+  str[e] = NULL;
+
+  // convert last fractionnal digit to byte
+  B = atoi(str[e-1]);
+  B = (B >> b) << b;
+  if (b < 0)
+    b = 0;
+  else if (b > 9)
+    b = 9;
+  str[e-1] = (char)('0' + B);
+}
+#endif /* JAPAN_POST */
