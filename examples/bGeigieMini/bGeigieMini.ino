@@ -341,6 +341,11 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   byte chk;
 
   gps_t *ptr = gps->getData();
+
+#if JAPAN_POST
+  // if for JP, make sure to truncate the GPS coordinates
+  truncate_JP(ptr->lat, ptr->lon);
+#endif
   
   memset(buf, 0, LINE_SZ);
   sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s",  \
@@ -409,37 +414,17 @@ void pullDevId()
  * Truncate the latitude and longitude according to
  * Japan Post requirements
  * 
- * Parameters:
- * str: a fixed-point number represented as a string
- * c  : the last c fractional digits are dropped
- * b  : the last b bit of the last fractional digit are dropped
+ * In order to rasterize to approximately 100m x 100m square
+ * we truncate the minutes to one digit after the decimal
+ * point. This gives 183x134m rasters in Hokkaido and
+ * 183x164m rasters in Okinawa.
+ *
+ * In practice it means that we drop the last three
+ * digits of both longitude and latitude.
  */
-void truncate(char *str, int c, int b)
+void truncate_JP(char *lat, char *lon)
 {
-  int s, e;
-  int B;
-
-  // find decimal point
-  s = 0;
-  while (str[s] != '.')
-    s++;
-
-  // find the end of the string
-  e = s;
-  while (e != NULL)
-    e++;
-
-  // set end of string c characters before
-  e -= c;
-  str[e] = NULL;
-
-  // convert last fractionnal digit to byte
-  B = atoi(str[e-1]);
-  B = (B >> b) << b;
-  if (b < 0)
-    b = 0;
-  else if (b > 9)
-    b = 9;
-  str[e-1] = (char)('0' + B);
+  lat[6] = NULL;
+  lon[7] = NULL;
 }
 #endif /* JAPAN_POST */
