@@ -34,6 +34,7 @@
 #include <EEPROM.h>
 #include <GPS.h>
 #include <InterruptCounter.h>
+#include <math.h>
 
 #define TIME_INTERVAL 5000
 #define NX 12
@@ -414,17 +415,45 @@ void pullDevId()
  * Truncate the latitude and longitude according to
  * Japan Post requirements
  * 
- * In order to rasterize to approximately 100m x 100m square
- * we truncate the minutes to one digit after the decimal
- * point. This gives 183x134m rasters in Hokkaido and
- * 183x164m rasters in Okinawa.
- *
- * In practice it means that we drop the last three
- * digits of both longitude and latitude.
+ * This algorithm truncate the minute
+ * part of the latitude and longitude
+ * in order to rasterize the points on
+ * a 100x100m grid.
  */
 void truncate_JP(char *lat, char *lon)
 {
-  lat[6] = NULL;
-  lon[7] = NULL;
+  unsigned long minutes;
+  float lat0;
+  unsigned int lon_trunc;
+
+  /* latitude */
+  // get minutes in one long int
+  minutes =  (lat[2]-'0')*100000 + (lat[3]-'0')*10000 + (lat[5]-'0')*1000 + (lat[6]-'0')*100 + (lat[7]-'0')*10 + (lat[8]-'0');
+  // compute the full latitude in radian
+  lat0 = ((float)(lat[0]-'0')*10 + (lat[1]-'0') + (float)minutes/600000.f)/180.*M_PI;
+  // truncate, for latutude, truncation factor is fixed
+  minutes -= minutes % 546;
+  // get this back in the string
+  lat[2] = '0' + (minutes/100000);
+  lat[3] = '0' + ((minutes%100000)/10000);
+  lat[5] = '0' + ((minutes%10000)/1000);
+  lat[6] = '0' + ((minutes%1000)/100);
+  lat[7] = '0' + ((minutes%100)/10);
+  lat[8] = '0' + (minutes%10);
+
+  /* longitude */
+  // get minutes in one long int
+  minutes =  (lon[3]-'0')*100000 + (lon[4]-'0')*10000 + (lon[6]-'0')*1000 + (lon[7]-'0')*100 + (lon[8]-'0')*10 + (lon[9]-'0');
+  // compute truncation factor
+  lon_trunc = (unsigned int)((0.0545674090600784/cos(lat0))*10000.);
+  // truncate
+  minutes -= minutes % lon_trunc;
+  // get this back in the string
+  lon[3] = '0' + (minutes/100000);
+  lon[4] = '0' + ((minutes%100000)/10000);
+  lon[6] = '0' + ((minutes%10000)/1000);
+  lon[7] = '0' + ((minutes%1000)/100);
+  lon[8] = '0' + ((minutes%100)/10);
+  lon[9] = '0' + (minutes%10);
 }
 #endif /* JAPAN_POST */
