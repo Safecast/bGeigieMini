@@ -50,6 +50,15 @@
 
 #define JAPAN_POST 1
 
+// defines for status bits
+#define SET_STAT(var, pos) var |= pos
+#define UNSET_STAT(var, pos) var &= ~pos
+#define CHECK_STAT(var, pos) (var & pos)
+#define RAD_STAT 1
+#define GPS_STAT 2
+#define SD_STAT 4
+#define WR_STAT 8
+
 static const int chipSelect = 10;
 static const int radioSelect = A3;
 static const int sdPwr = 4;
@@ -81,6 +90,18 @@ char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 char fileHeader[] = "# NEW LOG\n# format=1.2.0\n";
+
+// Status vector
+// 8bits
+// 7: Reserved
+// 6: Reserved
+// 5: Reserved
+// 4: Reserved
+// 3: last write to SD card successful
+// 2: SD card operational
+// 1: GPS device operational
+// 0: Radiation averaging status
+static byte status = 0;
  
 // State variables
 int gps_init_acq = 0;
@@ -139,20 +160,16 @@ void setup()
   Serial.print(tmp);
   
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
-    // don't do anything more:
-    int printOnce = 1;
-    while(1) 
-    {
-      if (printOnce) {
-        printOnce = 0;
-        strcpy_P(tmp, msg2);
-        Serial.print(tmp);
-      }
-    }
+  if (SD.begin(chipSelect))
+    SET_STAT(status, SD_STAT);
+  if (!CHECK_STAT(status, SD_STAT))
+  {
+    strcpy_P(tmp, msg2);
+    Serial.println(tmp);
+  } else {
+    strcpy_P(tmp, msg3);
+    Serial.print(tmp);
   }
-  strcpy_P(tmp, msg3);
-  Serial.print(tmp);
 
   // set initial state of Geiger to void
   geiger_status = VOID;
@@ -187,6 +204,24 @@ void loop()
     {
       unsigned long cpm=0, cpb=0;
       byte line_len;
+
+      // Check the SD card status and try to start it
+      // if it failed previously
+      if (!CHECK_STAT(status, SD_STAT))
+      {
+        strcpy_P(tmp, msg1);
+        Serial.print(tmp);
+        if (SD.begin(chipSelect)) 
+          SET_STAT(status, SD_STAT);
+        if (CHECK_STAT(status, SD_STAT))
+        {
+          strcpy_P(tmp, msg2);
+          Serial.print(tmp);
+        } else {
+          strcpy_P(tmp, msg3);
+          Serial.print(tmp);
+        }
+      }
 
       // obtain the count in the last bin
       cpb = interruptCounterCount();
@@ -288,18 +323,10 @@ void loop()
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
-          Serial.println(line);
           dataFile.print(line);
           dataFile.print("\n");
           dataFile.close();
 
-  #if TX_ENABLED
-          // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-  #endif
         }
         else
         {
@@ -309,20 +336,18 @@ void loop()
         }   
         
         // write to backup file as well
-        strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(line);
-          dataFile.print("\n");
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }
+        write_to_file(ext_bak, line);
+
+        // Printout line
+        Serial.println(line);
+
+  #if TX_ENABLED
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+  #endif
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
@@ -331,10 +356,26 @@ void loop()
   }
 }
 
-/**************************************************************************/
-/*!
+/* write a line to filename (global variable) with given extension to SD card */
+void write_to_file(char *ext, char *line)
+{
+  // write to backup file as well
+  strcpy(filename+8, ext);
+  dataFile = SD.open(filename, FILE_WRITE);
+  if (dataFile)
+  {
+    dataFile.print(line);
+    dataFile.print("\n");
+    dataFile.close();
+  }
+  else
+  {
+    char tmp[40];
+    strcpy_P(tmp, msg4);
+    Serial.print(tmp);
+  }
+}
 
-*/
 /**************************************************************************/
 byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsigned long cpb)
 {
