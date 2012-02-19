@@ -428,7 +428,12 @@ void truncate_JP(char *lat, char *lon)
 
   /* latitude */
   // get minutes in one long int
-  minutes =  (lat[2]-'0')*100000 + (lat[3]-'0')*10000 + (lat[5]-'0')*1000 + (lat[6]-'0')*100 + (lat[7]-'0')*10 + (lat[8]-'0');
+  minutes =  (unsigned long)(lat[2]-'0')*100000 
+    + (unsigned long)(lat[3]-'0')*10000 
+    + (unsigned long)(lat[5]-'0')*1000 
+    + (unsigned long)(lat[6]-'0')*100 
+    + (unsigned long)(lat[7]-'0')*10 
+    + (unsigned long)(lat[8]-'0');
   // compute the full latitude in radian
   lat0 = ((float)(lat[0]-'0')*10 + (lat[1]-'0') + (float)minutes/600000.f)/180.*M_PI;
   // truncate, for latutude, truncation factor is fixed
@@ -443,7 +448,12 @@ void truncate_JP(char *lat, char *lon)
 
   /* longitude */
   // get minutes in one long int
-  minutes =  (lon[3]-'0')*100000 + (lon[4]-'0')*10000 + (lon[6]-'0')*1000 + (lon[7]-'0')*100 + (lon[8]-'0')*10 + (lon[9]-'0');
+  minutes =  (unsigned long)(lon[3]-'0')*100000 
+    + (unsigned long)(lon[4]-'0')*10000 
+    + (unsigned long)(lon[6]-'0')*1000 
+    + (unsigned long)(lon[7]-'0')*100 
+    + (unsigned long)(lon[8]-'0')*10 
+    + (unsigned long)(lon[9]-'0');
   // compute truncation factor
   lon_trunc = (unsigned int)((0.0545674090600784/cos(lat0))*10000.);
   // truncate
@@ -455,5 +465,6 @@ void truncate_JP(char *lat, char *lon)
   lon[7] = '0' + ((minutes%1000)/100);
   lon[8] = '0' + ((minutes%100)/10);
   lon[9] = '0' + (minutes%10);
+
 }
 #endif /* JAPAN_POST */
