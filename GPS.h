@@ -87,29 +87,12 @@ typedef struct
     date_time_t datetime;
 } gps_t;
 
-
-class GPS
-{
-  // public
-  public:
-    GPS(HardwareSerial *serial, char *line);
-    void update();
-    int available();
-    inline gps_t *getData() { return &_gps_data; }
-    static char checksum(char *s, int N);
-    unsigned long age();
-
-  // private
-  private:
-    byte _updating;
-    HardwareSerial* _serial;      // The serial port used by GPS
-    gps_t _gps_data;              // GPS data structure
-    char *_line;                  // buffer to receive new line from serial
-    byte _index;                  // current character index
-    unsigned long _rx_time;       // Timestamp of received time
-    void parse_line_rmc(char **token);  // parse RMC sentence (from NMEA protocol)
-    void parse_line_gga(char **token);  // parse GGA sentence (from NMEA protocol)
-    void parse_datetime();              // parse date and time into correct data struct
-};
+// 'public' methods
+void gps_init(HardwareSerial *serial, char *line);
+void gps_update();
+int gps_available();
+gps_t *gps_getData();
+char gps_checksum(char *s, int N);
+unsigned long gps_age();
 
 #endif /* GPS_H */

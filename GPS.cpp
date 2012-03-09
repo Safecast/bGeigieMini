@@ -30,9 +30,22 @@
 #include "GPS.h"
 #include <limits.h>
 
+/* 'private' methods declarations */
+void parse_line_rmc(char **token);  // parse RMC sentence (from NMEA protocol)
+void parse_line_gga(char **token);  // parse GGA sentence (from NMEA protocol)
+void parse_datetime();              // parse date and time into correct data struct
+
+/* state variables */
+byte _updating;
+HardwareSerial* _serial;      // The serial port used by GPS
+gps_t _gps_data;              // GPS data structure
+char *_line;                  // buffer to receive new line from serial
+byte _index;                  // current character index
+unsigned long _rx_time;       // Timestamp of received time
+
 // Constructor
 // we need to provide the line buffer for RAM efficiency
-GPS::GPS(HardwareSerial *serial, char *line)
+void gps_init(HardwareSerial *serial, char *line)
 {
   _serial = serial; // Hardware Serial connection, supposed to be initialized
   _index = 0;            // character counter initialization
@@ -44,14 +57,14 @@ GPS::GPS(HardwareSerial *serial, char *line)
 }
 
 // Availability indicator
-int GPS::available()
+int gps_available()
 {
   // location available when not updating
   return !_updating;
 }
 
 // Return the millisecond microprocessor time of when data was received
-unsigned long GPS::age()
+unsigned long gps_age()
 {
   unsigned long now = millis();
   
@@ -62,7 +75,7 @@ unsigned long GPS::age()
 }
 
 // Update routine
-void GPS::update()
+void gps_update()
 {
 
   char *tok[SYM_SZ] = {0};
@@ -128,7 +141,7 @@ void GPS::update()
 }
 
 // Compute checksum of input array
-char GPS::checksum(char *s, int N)
+char gps_checksum(char *s, int N)
 {
   int i = 0;
   char chk = s[0];
@@ -139,8 +152,14 @@ char GPS::checksum(char *s, int N)
   return chk;
 }
 
+// Return reference to GPS data structure
+gps_t *gps_getData() 
+{ 
+  return &_gps_data; 
+}
+
 // Parse RMC sentence
-void GPS::parse_line_rmc(char **token)
+void parse_line_rmc(char **token)
 {
   memcpy(&_gps_data.utc,        token[1],     UTC_SZ-1);
   memcpy(&_gps_data.status,     token[2],     DEFAULT_SZ-1);
@@ -155,7 +174,7 @@ void GPS::parse_line_rmc(char **token)
 }
 
 // Parse GGA sentence
-void GPS::parse_line_gga(char **token)
+void parse_line_gga(char **token)
 {
     memcpy(&_gps_data.quality,    token[6], DEFAULT_SZ-1);
     memcpy(&_gps_data.num_sat,   token[7], NUM_SAT_SZ-1);
@@ -163,9 +182,8 @@ void GPS::parse_line_gga(char **token)
     memcpy(&_gps_data.altitude,  token[9], ALTITUDE_SZ-1);
 }
 
-
 // Parse date and time from GPS and input in structure
-void GPS::parse_datetime()
+void parse_datetime()
 {
     memset(&_gps_data.datetime, 0, sizeof(date_time_t));
 
