@@ -63,6 +63,10 @@ static const int chipSelect = 10;
 static const int radioSelect = A3;
 static const int sdPwr = 4;
 
+// SD card detect and write protect input pins
+static const int sd_cd = 6;
+static const int sd_wp = 7;
+
 unsigned long shift_reg[NX] = {0};
 unsigned long reg_index = 0;
 unsigned long total_count = 0;
@@ -71,9 +75,6 @@ char geiger_status = VOID;
 
 // This is the data file object that we'll use to access the data file
 File dataFile; 
-
-// GPS object
-GPS *gps;
 
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
@@ -89,7 +90,11 @@ char hdr[6] = "BMRDD";  // header for sentence
 char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
-char fileHeader[] = "# NEW LOG\n# format=1.3.0\n";
+#if JAPAN_POST == 1
+char fileHeader[] = "# NEW LOG\n# format=1.3.1\n";
+#else
+char fileHeader[] = "# NEW LOG\n# format=1.3.1jp\n";
+#endif
 
 // Status vector
 // 8bits
@@ -119,6 +124,9 @@ void setup()
   // init serial
   Serial.begin(9600);
 
+  // print header to serial
+  Serial.print(fileHeader);
+
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(chipSelect, OUTPUT);
@@ -133,8 +141,8 @@ void setup()
   // Create pulse counter on INT1
   interruptCounterSetup(1, TIME_INTERVAL);
 
-  // Create GPS object using default Serial connection
-  gps = new GPS(&Serial, line);
+  // init GPS using default Serial connection
+  gps_init(&Serial, line);
   
   // set device id
   pullDevId();
@@ -152,12 +160,18 @@ void setup()
   chibiSetChannel(CHANNEL);
 #endif
 
-  // turn SD card on
-  pinMode(4, OUTPUT);
-  digitalWrite(4, LOW);
-  
   strcpy_P(tmp, msg1);
   Serial.print(tmp);
+
+  // setup card detect and write protect
+  /*
+  pinMode(sd_cd, INPUT);
+  pinMode(sd_wp, INPUT);
+  Serial.print("Card detect = ");
+  Serial.println(digitalRead(sd_cd));
+  Serial.print("Write protect = ");
+  Serial.println(digitalRead(sd_wp));
+  */
   
   // see if the card is present and can be initialized:
   if (SD.begin(chipSelect))
@@ -195,12 +209,12 @@ void loop()
   char tmp[25];
 
   // update gps
-  gps->update();
+  gps_update();
 
   // generate CPM every TIME_INTERVAL seconds
   if (interruptCounterAvailable())
   {
-    if (gps->available())
+    if (gps_available())
     {
       unsigned long cpm=0, cpb=0;
       byte line_len;
@@ -256,15 +270,15 @@ void loop()
       line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
 
-      if (gps_init_acq == 0 && gps->getData()->status[0] == AVAILABLE)
+      if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
       {
         // flag GPS acquired
         gps_init_acq = 1;
         // Create the filename for that drive
         strcpy(filename, dev_id);
         strcat(filename, "-");
-        strncat(filename, gps->getData()->date+2, 2);
-        strncat(filename, gps->getData()->date, 2);
+        strncat(filename, gps_getData()->date+2, 2);
+        strncat(filename, gps_getData()->date, 2);
         // print some comment line to mark beginning of new log
         strcpy(filename+8, ext_log);
         dataFile = SD.open(filename, FILE_WRITE);
@@ -382,7 +396,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   byte len;
   byte chk;
 
-  gps_t *ptr = gps->getData();
+  gps_t *ptr = gps_getData();
 
 #if JAPAN_POST
   // if for JP, make sure to truncate the GPS coordinates
@@ -409,7 +423,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
    buf[len] = '\0';
 
    // generate checksum
-   chk = GPS::checksum(buf+1, len);
+   chk = gps_checksum(buf+1, len);
 
    // add checksum to end of line before sending
    if (chk < 16)
@@ -475,8 +489,6 @@ void truncate_JP(char *lat, char *lon)
     + (unsigned long)(lat[6]-'0')*100 
     + (unsigned long)(lat[7]-'0')*10 
     + (unsigned long)(lat[8]-'0');
-  // compute the full latitude in radian
-  lat0 = ((float)(lat[0]-'0')*10 + (lat[1]-'0') + (float)minutes/600000.f)/180.*M_PI;
   // truncate, for latutude, truncation factor is fixed
   minutes -= minutes % 546;
   // get this back in the string
@@ -486,6 +498,9 @@ void truncate_JP(char *lat, char *lon)
   lat[6] = '0' + ((minutes%1000)/100);
   lat[7] = '0' + ((minutes%100)/10);
   lat[8] = '0' + (minutes%10);
+
+  // compute the full latitude in radian
+  lat0 = ((float)(lat[0]-'0')*10 + (lat[1]-'0') + (float)minutes/600000.f)/180.*M_PI;
 
   /* longitude */
   // get minutes in one long int
