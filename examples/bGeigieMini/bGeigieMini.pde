@@ -90,11 +90,13 @@ char hdr[6] = "BMRDD";  // header for sentence
 char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
-#if JAPAN_POST == 1
-char fileHeader[] = "# NEW LOG\n# format=1.3.1\n";
-#else
+
+#if JAPAN_POST
 char fileHeader[] = "# NEW LOG\n# format=1.3.1jp\n";
+#else
+char fileHeader[] = "# NEW LOG\n# format=1.3.1\n";
 #endif
+
 
 // Status vector
 // 8bits
