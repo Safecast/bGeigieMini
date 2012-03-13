@@ -323,11 +323,10 @@ void setBrightness(float c)
 void controlBrightness()
 {
   float dim_coeff;
-  int light, tilt;
+  int tilt;
   unsigned long delta_t = millis() - dimmerTimer;
 
-  // read light and tilt sensors
-  light = analogRead(pinLightSensor);
+  // read tilt sensors
   tilt = digitalRead(pinTiltSensor);
 
   // check if dim reset
@@ -339,7 +338,7 @@ void controlBrightness()
   tilt_pre = tilt;
 
   // set a priori brightness
-  dim_coeff = light/1023.0;
+  dim_coeff = 1.0;
   
   // now handle dimming
   if (!dimmed)
