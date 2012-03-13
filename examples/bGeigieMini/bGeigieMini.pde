@@ -48,7 +48,7 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-#define JAPAN_POST 1
+#define JAPAN_POST 0
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
