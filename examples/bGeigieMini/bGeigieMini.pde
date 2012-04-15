@@ -48,7 +48,7 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-#define JAPAN_POST 0
+#define JAPAN_POST 1
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
@@ -92,9 +92,9 @@ char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
 #if JAPAN_POST
-char fileHeader[] = "# NEW LOG\n# format=1.3.2jp\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.3jp\n";
 #else
-char fileHeader[] = "# NEW LOG\n# format=1.3.2\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.3\n";
 #endif
 
 
@@ -160,6 +160,10 @@ void setup()
   // init chibi on channel normally 20
   chibiInit();
   chibiSetChannel(CHANNEL);
+  unsigned int addr = getRadioAddr();
+  Serial.print("Addr: 0x");
+  Serial.println(addr, HEX);
+  chibiSetShortAddr(addr);
 #endif
 
   strcpy_P(tmp, msg1);
@@ -487,6 +491,29 @@ void pullDevId()
   dev_id[BMRDD_ID_LEN] = NULL;
 
   sei(); // re-enable all interrupts
+}
+
+/*
+ * Set the address for the radio based on device ID
+ */
+unsigned int getRadioAddr()
+{
+  // prefix with two so that it never collides with broadcast address
+  unsigned int addr = 0x2000;
+
+  // first digit
+  if (dev_id[0] != 'X')
+    addr += (unsigned int)(dev_id[0]-'0') * 0x100;
+
+  // second digit
+  if (dev_id[1] != 'X')
+    addr += (unsigned int)(dev_id[1]-'0') * 0x10;
+
+  // third digit
+  if (dev_id[2] != 'X')
+    addr += (unsigned int)(dev_id[2]-'0') * 0x1;
+
+  return addr;
 }
 
 #if JAPAN_POST
