@@ -92,9 +92,9 @@ char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
 #if JAPAN_POST
-char fileHeader[] = "# NEW LOG\n# format=1.3.1jp\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.2jp\n";
 #else
-char fileHeader[] = "# NEW LOG\n# format=1.3.1\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.2\n";
 #endif
 
 
@@ -457,16 +457,36 @@ unsigned long cpm_gen()
 
 void pullDevId()
 {
+  // counter for trials of reading EEPROM
+  int n = 0;
+  int N = 3;
+
+  cli(); // disable all interrupts
+
   for (int i=0 ; i < BMRDD_ID_LEN ; i++)
   {
+    // try to read one time
     dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
-    if (dev_id[i] < '0' || dev_id[i] > '9')
+    n = 1;
+    // while it's not numberic, and up to N times, try to reread.
+    while ((dev_id[i] < '0' || dev_id[i] > '9') && n < N)
     {
-      dev_id[i] = '0';
-      EEPROM.write(i+BMRDD_EEPROM_ID, dev_id[i]);
+      // wait a little before we retry
+      delay(10);        
+      // reread once and then increment the counter
+      dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
+      n++;
     }
+
+    // catch when the read number is non-numeric, replace with capital X
+    if (dev_id[i] < '0' || dev_id[i] > '9')
+      dev_id[i] = 'X';
   }
+
+  // set the end of string null
   dev_id[BMRDD_ID_LEN] = NULL;
+
+  sei(); // re-enable all interrupts
 }
 
 #if JAPAN_POST
