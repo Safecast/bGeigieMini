@@ -30,6 +30,7 @@
 
 
 #include <chibi.h>
+#include <GPS.h>
 
 /* device id length */
 #define BMRDD_ID_LEN 3
@@ -65,6 +66,7 @@ unsigned long total;
 double uSh_pre = 0;
 char rad_flag = 'A';
 char gps_flag = 'A';
+char data_corrupt_flag = 0;
 char dev_id[BMRDD_ID_LEN+1];  // device id
 
 // link status variable
@@ -126,8 +128,8 @@ void setup()
   
   // set address
   chibiSetShortAddr(RX_ADDR);
-  Serial.print("Just set address to ");
-  Serial.println(chibiGetShortAddr());
+  Serial.print("Just set address to 0x");
+  Serial.println(chibiGetShortAddr(), HEX);
 
   // set channel number
   chibiSetChannel(CHANNEL);
@@ -168,55 +170,70 @@ void loop()
     // extract the data from the sentence received
     extract_data((char *)buf, L);
 
-    // compute dose rate
-    double uSh = CPM/350.0;
+    // if data is corrupt, only display that
+    if (data_corrupt_flag == 1)
+    {
+      /* Checksum didn't match. We choose not to update display */
+      /* If you want to display some message, uncomment 4 following lines */
+      // lcd.setCursor(0, 0);
+      // lcd.print("Bad Data");
+      // lcd.setCursor(0, 1);
+      // lcd.print("Received");
+    }
+    else
+    { // If data received is not corrupted (checksum matches)
 
-    // compute dose
-    double dose = total/350.0/60.0;
-    
-    // dose rate on first row
-    uShStr(CPM, line, 350);
-    lcd.setCursor(0, 0);
-    if (rad_flag == 'A')
+      // compute dose rate
+      double uSh = CPM/350.0;
+
+      // compute dose
+      double dose = total/350.0/60.0;
+      
+      // dose rate on first row
+      uShStr(CPM, line, 350);
+      lcd.setCursor(0, 0);
+      if (rad_flag == 'A')
+        lcd.print(line);
+      else if (CPM != 0)
+        lcd.print("Wait... ");
+      else
+        lcd.print("NoGeiger");
+
+      // connection info on the 2nd row
+      lcd.setCursor(0, 1);
+      if (gps_flag == 'A')
+      {
+        line[0] = 'G';
+        line[1] = 'P';
+        line[2] = 'S';
+      }
+      else
+      {
+        line[0] = ' ';
+        line[1] = ' ';
+        line[2] = ' ';
+      }
+      line[3] = ' ';
+      line[4] = ' ';
+      line[5] = dev_id[0];
+      line[6] = dev_id[1];
+      line[7] = dev_id[2];
+      line[8] = NULL;
       lcd.print(line);
-    else if (CPM != 0)
-      lcd.print("Wait... ");
-    else
-      lcd.print("NoGeiger");
 
-    // connection info on the 2nd row
-    lcd.setCursor(0, 1);
-    if (gps_flag == 'A')
-    {
-      line[0] = 'G';
-      line[1] = 'P';
-      line[2] = 'S';
+      if (uSh_pre < 0.5 && uSh >= 0.5)
+        buzz(2000, 2, 500, 500);
+      else if (uSh_pre < 1.0 && uSh >= 1.0)
+        buzz(2000, 4, 250, 250);
+      else if (uSh_pre < 3.0 && uSh >= 3.0)
+        buzz(2000, 8, 125, 125);
+      else if (uSh_pre < 5.0 && uSh >= 5.0)
+        buzz(2000, 16, 65, 65);
+
+      // update uSievert/hour memory
+      uSh_pre = uSh;
+
     }
-    else
-    {
-      line[0] = ' ';
-      line[1] = ' ';
-      line[2] = ' ';
-    }
-    line[3] = ' ';
-    line[4] = ' ';
-    line[5] = dev_id[0];
-    line[6] = dev_id[1];
-    line[7] = dev_id[2];
-    line[8] = NULL;
-    lcd.print(line);
-
-    if (uSh_pre < 0.5 && uSh >= 0.5)
-      buzz(2000, 2, 500, 500);
-    else if (uSh_pre < 1.0 && uSh >= 1.0)
-      buzz(2000, 4, 250, 250);
-    else if (uSh_pre < 3.0 && uSh >= 3.0)
-      buzz(2000, 8, 125, 125);
-    else if (uSh_pre < 5.0 && uSh >= 5.0)
-      buzz(2000, 16, 65, 65);
-
-    // update uSievert/hour memory
-    uSh_pre = uSh;
 
   } else {
 
@@ -251,49 +268,81 @@ void extract_data(char *buf, int L)
   char *tot;
   char *r_flag;
   char *g_flag;
+  char chk_lc;
+  char chk_rx;
+  char ch1, ch2;
 
-  // first getting device id
-  if (L >= 9)
-  {
-    dev_id[0] = buf[7];
-    dev_id[1] = buf[8];
-    dev_id[2] = buf[9];
-  }
+  // assume data is good
+  data_corrupt_flag = 0;
+
+  // compute local checksum
+  chk_lc = gps_checksum(buf+1, L-4);
+
+  // get checksum from rx data
+  if (buf[L-2] > '9')
+    ch1 = buf[L-2] - 'A' + 10;
   else
+    ch1 = buf[L-2] - '0';
+  if (buf[L-1] > '9')
+    ch2 = buf[L-1] - 'A' + 10;
+  else
+    ch2 = buf[L-1]-'0';
+  chk_rx = ch1*16 + ch2;
+  
+  if (chk_lc == chk_rx)
   {
-    dev_id[0] = 'Y';
-    dev_id[1] = 'Y';
-    dev_id[2] = 'Y';
+
+    // first getting device id
+    if (L >= 9)
+    {
+      dev_id[0] = buf[7];
+      dev_id[1] = buf[8];
+      dev_id[2] = buf[9];
+    }
+    else
+    {
+      dev_id[0] = 'Y';
+      dev_id[1] = 'Y';
+      dev_id[2] = 'Y';
+    }
+    dev_id[3] = 0;
+    
+    // jumping 32 characters to arrive at CPM field
+    strcpy(field, (char *)buf + 32);
+    
+    cpm = strtok(field, ",");   // cpm field
+    strtok(NULL, ",");          // jumping bin count
+    tot= strtok(NULL, ",");  // total count
+    r_flag = strtok(NULL, ","); // cpm valid flag
+    for (i=0 ; i < 5 ; i++)
+      strtok(NULL, ",");
+    g_flag = strtok(NULL, ","); // gps validity flag
+
+    CPM = strtoul(cpm, NULL, 10);
+    total = strtoul(tot, NULL, 10);
+
+    /* buzz if rad flag becomes not valid */
+    if (rad_flag == 'A' && r_flag[0] == 'V')
+      buzz(4000, 4, 100, 150);
+    else if (rad_flag == 'V' && r_flag[0] == 'A')
+      buzz(4000, 1, 50, 1);
+    rad_flag = r_flag[0];
+
+    /* buzz if gps flag becomes not valid */
+    if (gps_flag == 'A' && g_flag[0] == 'V')
+      buzz(8000, 4, 100, 150);
+    else if (gps_flag == 'V' && g_flag[0] == 'A')
+      buzz(8000, 1, 50, 0);
+    gps_flag = g_flag[0];
+  } else {
+    data_corrupt_flag = 1;
+    Serial.print("Checksum mismatch. Received: ");
+    Serial.print(chk_rx, HEX);
+    Serial.print(" Computed: ");
+    Serial.println(chk_lc, HEX);
   }
-  dev_id[3] = 0;
   
-  // jumping 32 characters to arrive at CPM field
-  strcpy(field, (char *)buf + 32);
-  
-  cpm = strtok(field, ",");   // cpm field
-  strtok(NULL, ",");          // jumping bin count
-  tot= strtok(NULL, ",");  // total count
-  r_flag = strtok(NULL, ","); // cpm valid flag
-  for (i=0 ; i < 5 ; i++)
-    strtok(NULL, ",");
-  g_flag = strtok(NULL, ","); // gps validity flag
 
-  CPM = strtoul(cpm, NULL, 10);
-  total = strtoul(tot, NULL, 10);
-
-  /* buzz if rad flag becomes not valid */
-  if (rad_flag == 'A' && r_flag[0] == 'V')
-    buzz(4000, 4, 100, 150);
-  else if (rad_flag == 'V' && r_flag[0] == 'A')
-    buzz(4000, 1, 50, 1);
-  rad_flag = r_flag[0];
-
-  /* buzz if gps flag becomes not valid */
-  if (gps_flag == 'A' && g_flag[0] == 'V')
-    buzz(8000, 4, 100, 150);
-  else if (gps_flag == 'V' && g_flag[0] == 'A')
-    buzz(8000, 1, 50, 0);
-  gps_flag = g_flag[0];
 }
 
 void buzz(int f, int p, int t_up, int t_dw)
