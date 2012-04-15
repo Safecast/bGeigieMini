@@ -31,6 +31,9 @@
 
 #include <chibi.h>
 
+/* device id length */
+#define BMRDD_ID_LEN 3
+
 #define ENABLE_LCD 1
 #define DIM_TIME 60000
 #define DIM_LEN 1000
@@ -62,6 +65,7 @@ unsigned long total;
 double uSh_pre = 0;
 char rad_flag = 'A';
 char gps_flag = 'A';
+char dev_id[BMRDD_ID_LEN+1];  // device id
 
 // link status variable
 char lnk_flag = 'X';
@@ -101,6 +105,8 @@ void setup()
   lcd.begin(8, 2);
 
   // Print a message to the LCD.
+  lcd.print("SAFECAST");
+  lcd.setCursor(0, 1);
   lcd.print("Welcome!");
   buzz(4000, 2, 50, 150);
   delay(2000);
@@ -171,18 +177,32 @@ void loop()
     // dose rate on first row
     uShStr(CPM, line, 350);
     lcd.setCursor(0, 0);
-    lcd.print(line);
+    if (rad_flag == 'A')
+      lcd.print(line);
+    else if (CPM != 0)
+      lcd.print("Wait... ");
+    else
+      lcd.print("NoGeiger");
 
     // connection info on the 2nd row
     lcd.setCursor(0, 1);
-    line[0] = 'R';
-    line[1] = rad_flag;
-    line[2] = ' ';
-    line[3] = 'G';
-    line[4] = gps_flag;
-    line[5] = ' ';
-    line[6] = 'C';
-    line[7] = lnk_flag;
+    if (gps_flag == 'A')
+    {
+      line[0] = 'G';
+      line[1] = 'P';
+      line[2] = 'S';
+    }
+    else
+    {
+      line[0] = ' ';
+      line[1] = ' ';
+      line[2] = ' ';
+    }
+    line[3] = ' ';
+    line[4] = ' ';
+    line[5] = dev_id[0];
+    line[6] = dev_id[1];
+    line[7] = dev_id[2];
     line[8] = NULL;
     lcd.print(line);
 
@@ -208,10 +228,10 @@ void loop()
       // update link status
       lnk_flag = 'X';
       // print error message
-      char line[9] = {0};
-      strcpy(line, "NO LINK*");
+      lcd.setCursor(0, 0);
+      lcd.print("No Link ");
       lcd.setCursor(0, 1);
-      lcd.print(line);
+      lcd.print("Check BG");
     }
 #endif
   }
@@ -231,6 +251,21 @@ void extract_data(char *buf, int L)
   char *tot;
   char *r_flag;
   char *g_flag;
+
+  // first getting device id
+  if (L >= 9)
+  {
+    dev_id[0] = buf[7];
+    dev_id[1] = buf[8];
+    dev_id[2] = buf[9];
+  }
+  else
+  {
+    dev_id[0] = 'Y';
+    dev_id[1] = 'Y';
+    dev_id[2] = 'Y';
+  }
+  dev_id[3] = 0;
   
   // jumping 32 characters to arrive at CPM field
   strcpy(field, (char *)buf + 32);
