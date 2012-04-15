@@ -1,6 +1,8 @@
 /*
-   The bGeigie-mini
+   The bGeigie
    A device for car-borne radiation measurement (aka Radiation War-driving).
+
+   This code is for the single-board bGeigie designed for Safecast.
 
    Copyright (c) 2011, Robin Scheibler aka FakuFaku, Christopher Wang aka Akiba
    All rights reserved.
@@ -33,7 +35,6 @@
 #include <limits.h>
 #include <EEPROM.h>
 #include <GPS.h>
-#include <InterruptCounter.h>
 #include <HardwareCounter.h>
 
 #define TIME_INTERVAL 5000
@@ -48,15 +49,40 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-// Pin attribution
-static const int chipSelect = 4;
-static const int sdPwr = 14;
-static const int led1 = 15;
-static const int batt_sense = A6;
-static const int temp_sense = A7;
-#if TX_ENABLED
-static const int radioSelect = A3;
-#endif
+// main switch
+static const int main_switch = 2;
+
+// status LED
+static const int led = 15;
+
+// pulse counter input
+static const int count = 1;
+
+// peripherals power, suffixed with active state (l=low, h=high)
+static const int radio_sleep_l = A2;
+static const int sense_pwr_l = 3;
+static const int gps_on_off_h = 13;
+static const int hvps_en_l = 19;
+static const int sd_pwr_l = 14;
+
+// chip selects
+static const int ss = 4;
+static const int cs_radio = A3;
+static const int cs_32u4 = 0;
+static const int cs_sd = 12;
+
+// sensors
+static const int batt_sense = A7;
+static const int temp_sense = A6;
+static const int hv_sense = A5;
+static const int hum_sense = A4;
+
+// SD card detect
+static const int sd_card_detect = 20;
+
+// IRQ
+static const int irq_radio = 22;
+static const int irq_32u4 = 23;
 
 unsigned long shift_reg[NX] = {0};
 unsigned long reg_index = 0;
@@ -67,20 +93,18 @@ char geiger_status = VOID;
 // This is the data file object that we'll use to access the data file
 File dataFile; 
 
-// GPS object
-GPS *gps;
-
 // Hardware counter
 HardwareCounter hwc(1, TIME_INTERVAL);
 
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
 
-static char msg1[] PROGMEM = "SD init...\n";
-static char msg2[] PROGMEM = "Card failure...\n";
-static char msg3[] PROGMEM = "Card initialized\n";
-static char msg4[] PROGMEM = "Error: Log file cannot be opened.\n";
-static char msg5[] PROGMEM = "Device Id: ";
+static char msg_sd_init[] PROGMEM = "SD init...\n";
+static char msg_card_failure[] PROGMEM = "Card failure...\n";
+static char msg_card_initialized[] PROGMEM = "Card initialized\n";
+static char msg_error_log_file_cannot_open[] PROGMEM = "Error: Log file cannot be opened.\n";
+static char msg_device_id[] PROGMEM = "Device Id: ";
+static char msg_device_id_invalid[] PROGMEM = "Device Id invalid\n";
 
 char filename[13];      // placeholder for filename
 char hdr[6] = "BMRDD";  // header for sentence
@@ -104,30 +128,39 @@ void setup()
   
   // init serial
   Serial.begin(9600);
+  Serial.println("Helloworld.");
 
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
-  pinMode(chipSelect, OUTPUT);
-  digitalWrite(chipSelect, HIGH);     // disable SD card chip select 
+  pinMode(ss, OUTPUT);
+
+  pinMode(cs_sd, OUTPUT);
+  digitalWrite(cs_sd, HIGH);     // disable SD card chip select 
+
+  pinMode(cs_32u4, OUTPUT);
+  digitalWrite(cs_32u4, HIGH);   // disable 32u4 chip select
   
 #if TX_ENABLED
-  pinMode(radioSelect, OUTPUT);
-  digitalWrite(radioSelect, HIGH);    // disable radio chip select
+  pinMode(cs_radio, OUTPUT);
+  digitalWrite(cs_radio, HIGH);    // disable radio chip select
 #endif
   
-  pinMode(sdPwr, OUTPUT);
-  digitalWrite(sdPwr, LOW);           // turn on SD card power
-  
-  // Create pulse counter on INT2
-  interruptCounterSetup(2, TIME_INTERVAL);
+  pinMode(sd_pwr_l, OUTPUT);
+  digitalWrite(sd_pwr_l, LOW);      // turn on SD card power
 
-  // Create GPS object using default Serial connection
-  gps = new GPS(&Serial1, line);
+  pinMode(sense_pwr_l, OUTPUT);
+  digitalWrite(sense_pwr_l, LOW);     // turn sensors on
+
+  pinMode(gps_on_off_h, OUTPUT);
+  digitalWrite(gps_on_off_h, HIGH); // turn GPS on
+  
+  // initialize GPS using second Serial connection
+  gps_init(&Serial1, line);
   
   // set device id
   pullDevId();
 
-  strcpy_P(tmp, msg5);
+  strcpy_P(tmp, msg_device_id);
   Serial.print(tmp);
   Serial.println(dev_id);
 
@@ -140,27 +173,23 @@ void setup()
   chibiSetChannel(CHANNEL);
 #endif
 
-  // turn SD card on
-  pinMode(4, OUTPUT);
-  digitalWrite(4, LOW);
-  
-  strcpy_P(tmp, msg1);
+  strcpy_P(tmp, msg_sd_init);
   Serial.print(tmp);
   
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!SD.begin(cs_sd)) {
     // don't do anything more:
     int printOnce = 1;
     while(1) 
     {
       if (printOnce) {
         printOnce = 0;
-        strcpy_P(tmp, msg2);
+        strcpy_P(tmp, msg_card_failure);
         Serial.print(tmp);
       }
     }
   }
-  strcpy_P(tmp, msg3);
+  strcpy_P(tmp, msg_card_initialized);
   Serial.print(tmp);
 
   // set initial state of Geiger to void
@@ -171,7 +200,6 @@ void setup()
   Serial.println(FreeRam());
 
   // And now Start the Pulse Counter!
-  interruptCounterReset();
   hwc.start();
 
   // Starting now!
@@ -188,21 +216,21 @@ void loop()
   char tmp[25];
 
   // update gps
-  gps->update();
+  gps_update();
 
   // generate CPM every TIME_INTERVAL seconds
-  if (interruptCounterAvailable())
+  if (hwc.available())
   {
-    if (gps->available())
+    if (gps_available())
     {
       unsigned long cpm=0, cpb=0;
       byte line_len;
 
       // obtain the count in the last bin
-      cpb = interruptCounterCount();
+      cpb = hwc.count();
 
       // reset the pulse counter
-      interruptCounterReset();
+      hwc.start();
 
       // insert count in sliding window and compute CPM
       shift_reg[reg_index] = cpb;     // put the count in the correct bin
@@ -231,15 +259,15 @@ void loop()
       line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
 
-      if (gps_init_acq == 0 && gps->getData()->status[0] == AVAILABLE)
+      if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
       {
         // flag GPS acquired
         gps_init_acq = 1;
         // Create the filename for that drive
         strcpy(filename, dev_id);
         strcat(filename, "-");
-        strncat(filename, gps->getData()->date+2, 2);
-        strncat(filename, gps->getData()->date, 2);
+        strncat(filename, gps_getData()->date+2, 2);
+        strncat(filename, gps_getData()->date, 2);
         // print some comment line to mark beginning of new log
         strcpy(filename+8, ext_log);
         dataFile = SD.open(filename, FILE_WRITE);
@@ -253,7 +281,7 @@ void loop()
         else
         {
           char tmp[40];
-          strcpy_P(tmp, msg4);
+          strcpy_P(tmp, msg_error_log_file_cannot_open);
           Serial.print(tmp);
         }
         // write to backup file as well
@@ -267,7 +295,7 @@ void loop()
         else
         {
           char tmp[40];
-          strcpy_P(tmp, msg4);
+          strcpy_P(tmp, msg_error_log_file_cannot_open);
           Serial.print(tmp);
         }
       }
@@ -314,7 +342,7 @@ void loop()
         else
         {
           char tmp[40];
-          strcpy_P(tmp, msg4);
+          strcpy_P(tmp, msg_error_log_file_cannot_open);
           Serial.print(tmp);
         }   
         
@@ -330,7 +358,7 @@ void loop()
         else
         {
           char tmp[40];
-          strcpy_P(tmp, msg4);
+          strcpy_P(tmp, msg_error_log_file_cannot_open);
           Serial.print(tmp);
         }
         
@@ -351,7 +379,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   byte len;
   byte chk;
 
-  gps_t *ptr = gps->getData();
+  gps_t *ptr = gps_getData();
   
   memset(buf, 0, LINE_SZ);
   sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s",  \
@@ -373,7 +401,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
    buf[len] = '\0';
 
    // generate checksum
-   chk = GPS::checksum(buf+1, len);
+   chk = gps_checksum(buf+1, len);
 
    // add checksum to end of line before sending
    if (chk < 16)
@@ -403,13 +431,20 @@ unsigned long cpm_gen()
 
 void pullDevId()
 {
+  int trials = 10;
+  int j=0;
+  char tmp[25];
+
   for (int i=0 ; i < BMRDD_ID_LEN ; i++)
   {
     dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
+    j = 1;
+    while ((dev_id[i] < '0' || dev_id[i] > '9') && j < trials)
+      dev_id[i] = EEPROM.read(i+BMRDD_EEPROM_ID);
     if (dev_id[i] < '0' || dev_id[i] > '9')
     {
-      dev_id[i] = '0';
-      EEPROM.write(i+BMRDD_EEPROM_ID, dev_id[i]);
+      strcpy_P(tmp, msg_device_id_invalid);
+      Serial.print(tmp);
     }
   }
   dev_id[BMRDD_ID_LEN] = NULL;
