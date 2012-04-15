@@ -288,6 +288,7 @@ void loop()
         {
           Serial.print("Filename: ");
           Serial.println(filename);
+          dataFile.print("\n");
           dataFile.print(fileHeader);
           dataFile.close();
         }
@@ -302,6 +303,7 @@ void loop()
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
+          dataFile.print("\n");
           dataFile.print(fileHeader);
           dataFile.close();
         }
