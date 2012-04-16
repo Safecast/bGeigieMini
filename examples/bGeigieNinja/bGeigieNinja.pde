@@ -35,23 +35,19 @@
 /* device id length */
 #define BMRDD_ID_LEN 3
 
-#define ENABLE_LCD 1
 #define DIM_TIME 60000
 #define DIM_LEN 1000
 
-#if ENABLE_LCD
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <LiquidCrystal.h>
-#endif
 
 #define RX_ADDR 0x1234
 #define CHANNEL 20
 
 static const int radioSelect = A3;
 
-#if ENABLE_LCD
 // initialize the library with the numbers of the interface pins
 LiquidCrystal lcd(2, 3, 4, 5,6,7);
 // pin layout
@@ -79,7 +75,6 @@ float brightness;
 unsigned long dimmerTimer;
 int dimmed;
 int tilt_pre;
-#endif
 
 /**************************************************************************/
 // Initialize
@@ -92,7 +87,6 @@ void setup()
   // but let's make it explicit
   pinMode(radioSelect, OUTPUT);
 
-#if ENABLE_LCD
   // set pins
   pinMode(backlightPin, OUTPUT);
   pinMode(buzzerPin, OUTPUT);
@@ -112,7 +106,6 @@ void setup()
   lcd.print("Welcome!");
   buzz(4000, 2, 50, 150);
   delay(2000);
-#endif
 
   // Initialize the chibi command line and set the speed to 9600 bps
   Serial.begin(9600);
@@ -156,8 +149,6 @@ void loop()
     // Print out the message
     Serial.println((char *)buf);
    
-#if ENABLE_LCD
-
     // set time of message received
     last_msg_time = millis();
     
@@ -250,15 +241,11 @@ void loop()
       lcd.setCursor(0, 1);
       lcd.print("Check BG");
     }
-#endif
   }
 
-#if ENABLE_LCD
   controlBrightness();
-#endif
 }
 
-#if ENABLE_LCD
 
 void extract_data(char *buf, int L)
 {
@@ -443,5 +430,4 @@ void controlBrightness()
   setBrightness(dim_coeff);
 }
 
-#endif
 
