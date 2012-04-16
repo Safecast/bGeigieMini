@@ -139,12 +139,15 @@ void loop()
   // Check if any data was received from the radio. If so, then handle it.
   if (chibiDataRcvd() == true)
   { 
-    int len, rssi, src_addr;
+    int L; //, rssi, src_addr;
     byte buf[150] = {0};  // this is where we store the received data
     char line[9] = {0};
     
     // retrieve the data
-    len = chibiGetData(buf);
+    L = chibiGetData(buf);
+
+    // make sure it's a null terminated string
+    buf[L] = 0;
     
     // Print out the message
     Serial.println((char *)buf);
@@ -154,9 +157,6 @@ void loop()
     
     // set the link flag to OK
     lnk_flag = 'O';
-
-    // first get CPM and Dose
-    int L = strlen((char *)buf);
 
     // extract the data from the sentence received
     extract_data((char *)buf, L);
@@ -178,7 +178,7 @@ void loop()
       double uSh = CPM/350.0;
 
       // compute dose
-      double dose = total/350.0/60.0;
+      //double dose = total/350.0/60.0;
       
       // dose rate on first row
       uShStr(CPM, line, 350);
@@ -258,9 +258,37 @@ void extract_data(char *buf, int L)
   char chk_lc;
   char chk_rx;
   char ch1, ch2;
+  int new_length;
 
   // assume data is good
   data_corrupt_flag = 0;
+
+  // find the beginning of the sentence '$'
+  new_length = 0;
+  while (buf[new_length] != '$' && new_length != L)
+    new_length++;
+  if (buf[new_length] == '$')
+  { // in case of success set the buffer to start with '$'
+    buf += new_length;
+    L -= new_length;
+  }
+  else
+  { // else declare data corrupt and return
+    data_corrupt_flag = 1;
+    return;
+  }
+
+  // find end of the sentence '*'
+  new_length = 0;
+  while (buf[new_length] != '*' && new_length != L)
+    new_length++;
+  if (buf[new_length] == '*')
+    L = new_length + 3;   // success, set length to that, plus 2 for checksum, plus one for '*'
+  else
+  { // else report data corruption and return
+    data_corrupt_flag = 1;
+    return;
+  }
 
   // compute local checksum
   chk_lc = gps_checksum(buf+1, L-4);
@@ -275,60 +303,59 @@ void extract_data(char *buf, int L)
   else
     ch2 = buf[L-1]-'0';
   chk_rx = ch1*16 + ch2;
-  
-  if (chk_lc == chk_rx)
+
+  if (chk_lc != chk_rx)
   {
-
-    // first getting device id
-    if (L >= 9)
-    {
-      dev_id[0] = buf[7];
-      dev_id[1] = buf[8];
-      dev_id[2] = buf[9];
-    }
-    else
-    {
-      dev_id[0] = 'Y';
-      dev_id[1] = 'Y';
-      dev_id[2] = 'Y';
-    }
-    dev_id[3] = 0;
-    
-    // jumping 32 characters to arrive at CPM field
-    strcpy(field, (char *)buf + 32);
-    
-    cpm = strtok(field, ",");   // cpm field
-    strtok(NULL, ",");          // jumping bin count
-    tot= strtok(NULL, ",");  // total count
-    r_flag = strtok(NULL, ","); // cpm valid flag
-    for (i=0 ; i < 5 ; i++)
-      strtok(NULL, ",");
-    g_flag = strtok(NULL, ","); // gps validity flag
-
-    CPM = strtoul(cpm, NULL, 10);
-    total = strtoul(tot, NULL, 10);
-
-    /* buzz if rad flag becomes not valid */
-    if (rad_flag == 'A' && r_flag[0] == 'V')
-      buzz(4000, 4, 100, 150);
-    else if (rad_flag == 'V' && r_flag[0] == 'A')
-      buzz(4000, 1, 50, 1);
-    rad_flag = r_flag[0];
-
-    /* buzz if gps flag becomes not valid */
-    if (gps_flag == 'A' && g_flag[0] == 'V')
-      buzz(8000, 4, 100, 150);
-    else if (gps_flag == 'V' && g_flag[0] == 'A')
-      buzz(8000, 1, 50, 0);
-    gps_flag = g_flag[0];
-  } else {
     data_corrupt_flag = 1;
     Serial.print("Checksum mismatch. Received: ");
     Serial.print(chk_rx, HEX);
     Serial.print(" Computed: ");
     Serial.println(chk_lc, HEX);
+    return;
   }
+ 
+  // first getting device id
+  if (L >= 9)
+  {
+    dev_id[0] = buf[7];
+    dev_id[1] = buf[8];
+    dev_id[2] = buf[9];
+  }
+  else
+  {
+    dev_id[0] = 'Y';
+    dev_id[1] = 'Y';
+    dev_id[2] = 'Y';
+  }
+  dev_id[3] = 0;
   
+  // jumping 32 characters to arrive at CPM field
+  strcpy(field, (char *)buf + 32);
+  
+  cpm = strtok(field, ",");   // cpm field
+  strtok(NULL, ",");          // jumping bin count
+  tot= strtok(NULL, ",");  // total count
+  r_flag = strtok(NULL, ","); // cpm valid flag
+  for (i=0 ; i < 5 ; i++)
+    strtok(NULL, ",");
+  g_flag = strtok(NULL, ","); // gps validity flag
+
+  CPM = strtoul(cpm, NULL, 10);
+  total = strtoul(tot, NULL, 10);
+
+  /* buzz if rad flag becomes not valid */
+  if (rad_flag == 'A' && r_flag[0] == 'V')
+    buzz(4000, 4, 100, 150);
+  else if (rad_flag == 'V' && r_flag[0] == 'A')
+    buzz(4000, 1, 50, 1);
+  rad_flag = r_flag[0];
+
+  /* buzz if gps flag becomes not valid */
+  if (gps_flag == 'A' && g_flag[0] == 'V')
+    buzz(8000, 4, 100, 150);
+  else if (gps_flag == 'V' && g_flag[0] == 'A')
+    buzz(8000, 1, 50, 0);
+  gps_flag = g_flag[0];
 
 }
 
