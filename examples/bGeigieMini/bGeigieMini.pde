@@ -374,19 +374,6 @@ void loop()
           dataFile.print(line);
           dataFile.print("\n");
 
-#if JAPAN_POST
-          float v0 = read_voltage(pinV0);
-          float v1 = read_voltage(pinV1);
-          dataFile.print('#');
-          dataFile.print((int)(v0*1000));
-          dataFile.print(',');
-          dataFile.println((int)(v1*1000));
-          Serial.print('#');
-          Serial.print((int)(v0*1000));
-          Serial.print(',');
-          Serial.println((int)(v1*1000));
-#endif
-
           dataFile.close();
 
         }
@@ -411,11 +398,21 @@ void loop()
         chibiSleepRadio(1);
 #endif
 
+
+#if JAPAN_POST
+        // print voltage to BAK file
+        int v0 = (int)(1000*read_voltage(pinV0));
+        int v1 = (int)(1000*read_voltage(pinV1));
+        sprintf(line, "#%d,%d", v0, v1);
+        write_to_file(ext_bak, line);
+        Serial.println(line);
+#endif
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
       }
     }
+
   }
 }
 
