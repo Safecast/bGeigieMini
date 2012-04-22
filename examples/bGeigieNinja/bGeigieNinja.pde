@@ -32,6 +32,8 @@
 #include <chibi.h>
 #include <GPS.h>
 
+#include "version.h"
+
 /* device id length */
 #define BMRDD_ID_LEN 3
 
@@ -49,7 +51,7 @@
 static const int radioSelect = A3;
 
 // initialize the library with the numbers of the interface pins
-LiquidCrystal lcd(2, 3, 4, 5,6,7);
+LiquidCrystal lcd(2, 3, 4, 5, 6, 7);
 // pin layout
 int backlightPin = 9;
 int buzzerPin = 8;
@@ -82,7 +84,7 @@ int tilt_pre;
 void setup()
 {  
   // this is needed to ensure the uC is always a master on SPI
-  pinMode(SS, OUTPUT);
+  pinMode(10, OUTPUT);
   // the radio chip select is also define in chibiArduino library
   // but let's make it explicit
   pinMode(radioSelect, OUTPUT);
@@ -104,21 +106,31 @@ void setup()
   lcd.print("SAFECAST");
   lcd.setCursor(0, 1);
   lcd.print("Welcome!");
+  lcd.setCursor(0, 1);
   buzz(4000, 2, 50, 150);
+  delay(2000);
+
+  // Print version number
+  lcd.setCursor(0, 0);
+  lcd.print("Ninja   ");
+  lcd.setCursor(0, 1);
+  lcd.print("        ");
+  lcd.setCursor(0, 1);
+  lcd.print("v");
+  lcd.print(version);
   delay(2000);
 
   // Initialize the chibi command line and set the speed to 9600 bps
   Serial.begin(9600);
 
-  Serial.println("Hello.");
+  Serial.print("Safecast bGeigie Ninja, version ");
+  Serial.println(version);
 
   // Initialize the chibi wireless stack
   chibiInit();
 
-  Serial.println("Init chibi done. Now go. good.");
+  Serial.println("Init chibi done.");
 
-  Serial.println("All good.");
-  
   // set address
   chibiSetShortAddr(RX_ADDR);
   Serial.print("Just set address to 0x");
@@ -142,24 +154,40 @@ void loop()
     int L; //, rssi, src_addr;
     byte buf[150] = {0};  // this is where we store the received data
     char line[9] = {0};
-    
+    int pos_dollar, pos_star;
+
     // retrieve the data
     L = chibiGetData(buf);
 
-    // make sure it's a null terminated string
-    buf[L] = 0;
-    
-    // Print out the message
-    Serial.println((char *)buf);
-   
-    // set time of message received
-    last_msg_time = millis();
-    
-    // set the link flag to OK
-    lnk_flag = 'O';
+    // find the beginning and end of expected sentence
+    pos_dollar = find_char((char *)buf, '$', L);
+    pos_star   = find_char((char *)buf, '*', L);
 
-    // extract the data from the sentence received
-    extract_data((char *)buf, L);
+    if (pos_dollar != -1 && pos_star != -1)
+    {
+      // make sure it's a null terminated string
+      buf[pos_star+3] = 0;
+      
+      // Print out the message
+      Serial.println((char *)buf);
+     
+      // set time of message received
+      last_msg_time = millis();
+      
+      // set the link flag to OK
+      lnk_flag = 'O';
+
+      // extract the data from the sentence received
+      extract_data((char *)(buf+pos_dollar), pos_star-pos_dollar+3);
+    }
+    else
+    {
+      Serial.print("Error: $=");
+      Serial.print(pos_dollar);
+      Serial.print(" *=");
+      Serial.println(pos_star);
+      data_corrupt_flag = 1;
+    }
 
     // if data is corrupt, only display that
     if (data_corrupt_flag == 1)
@@ -170,6 +198,7 @@ void loop()
       // lcd.print("Bad Data");
       // lcd.setCursor(0, 1);
       // lcd.print("Received");
+      Serial.println("Data was corrupted.");
     }
     else
     { // If data received is not corrupted (checksum matches)
@@ -247,6 +276,22 @@ void loop()
 }
 
 
+/*
+ * Find first occurence of 'c' within
+ * the first N characters of buf
+ */
+int find_char(char *buf, char c, int N)
+{
+  int pos = 0;
+  while (buf[pos] != c && pos < N)
+    pos++;
+  if (pos < N && buf[pos] == c)
+    return pos;
+  else
+    return -1;
+}
+
+
 void extract_data(char *buf, int L)
 {
   int i;
@@ -258,37 +303,10 @@ void extract_data(char *buf, int L)
   char chk_lc;
   char chk_rx;
   char ch1, ch2;
-  int new_length;
 
   // assume data is good
   data_corrupt_flag = 0;
 
-  // find the beginning of the sentence '$'
-  new_length = 0;
-  while (buf[new_length] != '$' && new_length != L)
-    new_length++;
-  if (buf[new_length] == '$')
-  { // in case of success set the buffer to start with '$'
-    buf += new_length;
-    L -= new_length;
-  }
-  else
-  { // else declare data corrupt and return
-    data_corrupt_flag = 1;
-    return;
-  }
-
-  // find end of the sentence '*'
-  new_length = 0;
-  while (buf[new_length] != '*' && new_length != L)
-    new_length++;
-  if (buf[new_length] == '*')
-    L = new_length + 3;   // success, set length to that, plus 2 for checksum, plus one for '*'
-  else
-  { // else report data corruption and return
-    data_corrupt_flag = 1;
-    return;
-  }
 
   // compute local checksum
   chk_lc = gps_checksum(buf+1, L-4);
@@ -457,4 +475,10 @@ void controlBrightness()
   setBrightness(dim_coeff);
 }
 
+int FreeRam () 
+{
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+}
 
