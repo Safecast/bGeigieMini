@@ -48,7 +48,7 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-#define JAPAN_POST 0
+#define JAPAN_POST 1
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
@@ -153,6 +153,9 @@ void setup()
   // setup analog reference to read battery and boost voltage
   analogReference(INTERNAL);
   // setup pin for boost converter
+  pinMode(pinBoost, OUTPUT);
+  digitalWrite(pinBoost, LOW);
+  delay(20);
   pinMode(pinBoost, INPUT);
 #endif
   
@@ -236,6 +239,14 @@ void loop()
   // generate CPM every TIME_INTERVAL seconds
   if (interruptCounterAvailable())
   {
+#if JAPAN_POST
+    // give a pulse to enable boost converter of LiPo pack
+    pinMode(pinBoost, OUTPUT);
+    digitalWrite(pinBoost, LOW);
+    delay(20);
+    pinMode(pinBoost, INPUT);
+#endif
+        
     if (gps_available())
     {
       unsigned long cpm=0, cpb=0;
@@ -400,13 +411,6 @@ void loop()
         chibiSleepRadio(1);
 #endif
 
-#if JAPAN_POST
-        // give a pulse to enable boost converter of LiPo pack
-        pinMode(pinBoost, OUTPUT);
-        digitalWrite(pinBoost, LOW);
-        pinMode(pinBoost, INPUT);
-#endif
-        
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
@@ -615,6 +619,6 @@ void truncate_JP(char *lat, char *lon)
 
 float read_voltage(int pin)
 {
-  return 1.1*analogRead(pin)/1023. * 10.1
+  return 1.1*analogRead(pin)/1023. * 10.0;
 }
 #endif /* JAPAN_POST */
