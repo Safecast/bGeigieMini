@@ -67,6 +67,15 @@ static const int sdPwr = 4;
 static const int sd_cd = 6;
 static const int sd_wp = 7;
 
+#if JAPAN_POST
+// We read voltage on analog pins 0 and 1
+static const int pinV0 = A0;
+static const int pinV1 = A1;
+
+// pin to enable boost converter of LiPo battery
+static const int pinBoost = 2;
+#endif
+
 unsigned long shift_reg[NX] = {0};
 unsigned long reg_index = 0;
 unsigned long total_count = 0;
@@ -139,6 +148,13 @@ void setup()
   
   pinMode(sdPwr, OUTPUT);
   digitalWrite(sdPwr, LOW);           // turn on SD card power
+
+#if JAPAN_POST
+  // setup analog reference to read battery and boost voltage
+  analogReference(INTERNAL);
+  // setup pin for boost converter
+  pinMode(pinBoost, INPUT);
+#endif
   
   // Create pulse counter on INT1
   interruptCounterSetup(1, TIME_INTERVAL);
@@ -275,7 +291,6 @@ void loop()
 
       line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
-
       if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
       {
         // flag GPS acquired
@@ -347,6 +362,20 @@ void loop()
         {
           dataFile.print(line);
           dataFile.print("\n");
+
+#if JAPAN_POST
+          float v0 = read_voltage(pinV0);
+          float v1 = read_voltage(pinV1);
+          dataFile.print('#');
+          dataFile.print((int)(v0*1000));
+          dataFile.print(',');
+          dataFile.println((int)(v1*1000));
+          Serial.print('#');
+          Serial.print((int)(v0*1000));
+          Serial.print(',');
+          Serial.println((int)(v1*1000));
+#endif
+
           dataFile.close();
 
         }
@@ -363,13 +392,21 @@ void loop()
         // Printout line
         Serial.println(line);
 
-  #if TX_ENABLED
+#if TX_ENABLED
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
         chibiSleepRadio(0);
         delay(10);
         chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
         chibiSleepRadio(1);
-  #endif
+#endif
+
+#if JAPAN_POST
+        // give a pulse to enable boost converter of LiPo pack
+        pinMode(pinBoost, OUTPUT);
+        digitalWrite(pinBoost, LOW);
+        pinMode(pinBoost, INPUT);
+#endif
+        
         
         //turn off sd power        
         //digitalWrite(sdPwr, HIGH); 
@@ -573,5 +610,11 @@ void truncate_JP(char *lat, char *lon)
   lon[8] = '0' + ((minutes%100)/10);
   lon[9] = '0' + (minutes%10);
 
+}
+
+
+float read_voltage(int pin)
+{
+  return 1.1*analogRead(pin)/1023. * 10.1
 }
 #endif /* JAPAN_POST */
