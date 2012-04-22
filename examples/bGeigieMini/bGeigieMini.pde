@@ -38,7 +38,7 @@
 
 #define TIME_INTERVAL 5000
 #define NX 12
-#define DEST_ADDR 0x1234
+#define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20
 #define TX_ENABLED 1
 #define LED_ENABLED 0
