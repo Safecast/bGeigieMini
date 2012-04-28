@@ -35,6 +35,7 @@
 #include <GPS.h>
 #include <InterruptCounter.h>
 #include <math.h>
+#include <avr/wdt.h>
 
 #define TIME_INTERVAL 5000
 #define NX 12
@@ -131,9 +132,17 @@ int log_created = 0;
 void setup()
 {
   char tmp[25];
-  
+
   // init serial
   Serial.begin(9600);
+
+  // enable and reset the watchdog timer
+  wdt_enable(WDTO_8S);    // the arduino will automatically reset if it hangs for more than 8s
+  wdt_reset();
+#if TIME_INTERVAL > 7000
+  Serial.println("WARNING: LOOP INTERVAL CLOSE TO WATCHDOG TIMOUT");
+#endif
+  
 
   // print header to serial
   Serial.print(fileHeader);
@@ -247,6 +256,9 @@ void loop()
     pinMode(pinBoost, INPUT);
 #endif
         
+    // first, reset the watchdog timer
+    wdt_reset();
+
     if (gps_available())
     {
       unsigned long cpm=0, cpb=0;
