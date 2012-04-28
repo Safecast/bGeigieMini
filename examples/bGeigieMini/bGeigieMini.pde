@@ -102,9 +102,9 @@ char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
 #if JAPAN_POST
-char fileHeader[] = "# NEW LOG\n# format=1.3.4jp\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.5jp\n";
 #else
-char fileHeader[] = "# NEW LOG\n# format=1.3.4\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.5\n";
 #endif
 
 
