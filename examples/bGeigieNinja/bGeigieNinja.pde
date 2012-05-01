@@ -226,15 +226,17 @@ void loop()
         line[0] = 'G';
         line[1] = 'P';
         line[2] = 'S';
+        line[3] = ' ';
+        line[4] = ' ';
       }
       else
       {
-        line[0] = ' ';
-        line[1] = ' ';
-        line[2] = ' ';
+        line[0] = 'N';
+        line[1] = 'o';
+        line[2] = 'G';
+        line[3] = 'P';
+        line[4] = 'S';
       }
-      line[3] = ' ';
-      line[4] = ' ';
       line[5] = dev_id[0];
       line[6] = dev_id[1];
       line[7] = dev_id[2];
