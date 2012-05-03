@@ -50,6 +50,7 @@
 #define BMRDD_ID_LEN 3
 
 #define JAPAN_POST 0
+#define ENABLE_DIAGNOSTIC 1
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
@@ -68,11 +69,13 @@ static const int sdPwr = 4;
 static const int sd_cd = 6;
 static const int sd_wp = 7;
 
-#if JAPAN_POST
+#if ENABLE_DIAGNOSTIC
 // We read voltage on analog pins 0 and 1
 static const int pinV0 = A0;
 static const int pinV1 = A1;
+#endif
 
+#if JAPAN_POST
 // pin to enable boost converter of LiPo battery
 static const int pinBoost = 2;
 #endif
@@ -102,9 +105,9 @@ char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
 #if JAPAN_POST
-char fileHeader[] = "# NEW LOG\n# format=1.3.5jp\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.6jp\n";
 #else
-char fileHeader[] = "# NEW LOG\n# format=1.3.5\n";
+char fileHeader[] = "# NEW LOG\n# format=1.3.6\n";
 #endif
 
 
@@ -158,9 +161,12 @@ void setup()
   pinMode(sdPwr, OUTPUT);
   digitalWrite(sdPwr, LOW);           // turn on SD card power
 
-#if JAPAN_POST
+#if ENABLE_DIAGNOSTIC
   // setup analog reference to read battery and boost voltage
   analogReference(INTERNAL);
+#endif
+
+#if JAPAN_POST
   // setup pin for boost converter
   pinMode(pinBoost, OUTPUT);
   digitalWrite(pinBoost, LOW);
@@ -411,7 +417,7 @@ void loop()
 #endif
 
 
-#if JAPAN_POST
+#if ENABLE_DIAGNOSTIC
         // print voltage to BAK file
         int v0 = (int)(1000*read_voltage(pinV0));
         int v1 = (int)(1000*read_voltage(pinV1));
@@ -624,10 +630,13 @@ void truncate_JP(char *lat, char *lon)
   lon[9] = '0' + (minutes%10);
 
 }
+#endif /* JAPAN_POST */
 
 
+#if ENABLE_DIAGNOSTIC
 float read_voltage(int pin)
 {
-  return 1.1*analogRead(pin)/1023. * 10.0;
+  return 1.1*analogRead(pin)/1023. * 10.1;
 }
-#endif /* JAPAN_POST */
+#endif
+
