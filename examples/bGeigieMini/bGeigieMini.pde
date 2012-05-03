@@ -50,7 +50,7 @@
 #define BMRDD_ID_LEN 3
 
 #define JAPAN_POST 0
-#define ENABLE_DIAGNOSTIC 1
+#define ENABLE_DIAGNOSTIC 0
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
