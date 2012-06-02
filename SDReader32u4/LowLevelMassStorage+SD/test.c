@@ -15,7 +15,71 @@
 
 uint8_t spi_rxtx_byte(uint8_t b);
 uint8_t spi_irq(uint8_t b);
-void spi_init();
+void spi_init(void);
+void delay_loop(uint32_t d);
+
+int main(void)
+{
+  uint32_t i = 0;
+
+  LED_init();
+  LED_off();
+
+  spi_init();
+
+  configure_pin_irq();
+  irq_low();
+
+  LED_on();
+  delay_loop(200000);
+  LED_off();
+  delay_loop(200000);
+  LED_on();
+  delay_loop(200000);
+  LED_off();
+  delay_loop(200000);
+  LED_on();
+
+	for (;;)
+	{
+    delay_loop(100000);
+    LED_off();
+    delay_loop(100000);
+    LED_on();
+
+    spi_irq((uint8_t)i++);
+    //spi_rxtx(0x01);
+    LED_off();
+
+    /*
+    irq_high();
+    for (i = 0 ; i < 256 ; i++)
+      spi_rxtx_byte((uint8_t)i);
+    irq_low();
+    */
+
+/*
+    if (i/20000 % 2 == 0)
+    {
+      LED_off();
+      irq_low();
+    }
+    else
+    {
+      LED_on();
+      SPDR = b++;
+      //irq_high();
+      //c = 0;
+      //while (c++ < 128);
+      // wait for byte to be shifted out
+      while(!(SPSR & (1 << SPIF)));
+      SPSR &= ~(1 << SPIF);
+      //irq_low();
+    }
+    i++;
+    */
+  }
+}
 
 uint8_t spi_rxtx_byte(uint8_t b)
 {
@@ -39,8 +103,9 @@ uint8_t spi_irq(uint8_t b)
   return SPDR;
 }
 
-void spi_init()
+void spi_init(void)
 {
+  uint8_t b;
   // SS input
   DDRB &= ~(1 << DDB0);
   PORTB &= ~(1 << PORTB0);
@@ -54,62 +119,22 @@ void spi_init()
   DDRB |= (1 << DDB3);
 
   // enable double-speed
-  SPSR |= (1 << SPI2X);
+  //SPSR |= (1 << SPI2X);
 
   // enable SPI
   SPCR = (1 << SPE);
+
+  // reading these two register should start spi
+  b = SPDR;
+  b = SPSR;
+
+  return;
 }
 
-int main(void)
+void delay_loop(uint32_t d)
 {
-  uint32_t i = 0;
-  uint8_t b = 1;
-
-  LED_init();
-  LED_off();
-
-  spi_init();
-  configure_pin_irq();
-  irq_low();
-
-	for (;;)
-	{
-    while (i < 500000)
-      i++;
-    i = 0;
-
-    LED_on();
-    spi_irq(0xff);
-    LED_off();
-
-    while (i < 100000)
-      i++;
-    i = 0;
-
-    LED_on();
-    spi_irq(0x0);
-    for (i = 0 ; i < 256 ; i++)
-      spi_rxtx_byte((uint8_t)i);
-    LED_off();
-/*
-    if (i/20000 % 2 == 0)
-    {
-      LED_off();
-      irq_low();
-    }
-    else
-    {
-      LED_on();
-      SPDR = b++;
-      //irq_high();
-      //c = 0;
-      //while (c++ < 128);
-      // wait for byte to be shifted out
-      while(!(SPSR & (1 << SPIF)));
-      SPSR &= ~(1 << SPIF);
-      //irq_low();
-    }
-    i++;
-    */
-  }
+  uint32_t i = 0x0;
+  for (i = 0x0 ; i < d ; i++);
+  return;
 }
+

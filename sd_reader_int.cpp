@@ -40,9 +40,9 @@ void sd_reader_setup()
   pinMode(SS, OUTPUT);
 
   // configure SPI
-  SPI.setBitOrder(MSBFIRST);
-  SPI.setDataMode(SPI_MODE0);
-  SPI.setClockDivider(SPI_CLOCK_DIV2);
+  //SPI.setBitOrder(MSBFIRST);
+  //SPI.setDataMode(SPI_MODE0);
+  //SPI.setClockDivider(SPI_CLOCK_DIV2);
   SPI.begin();
 
   pinMode(sd_detect, INPUT);
@@ -61,12 +61,14 @@ void sd_reader_setup()
   // deblock the SPI if IRQ is high
   if (digitalRead(irq_32u4))
   {
-    Serial.println("Unblock SPI.");
+    uint8_t b;
+    Serial.print("Unblock SPI: ");
     select_32u4();
     delay(10);
-    SPI.transfer(0x0);
+    b = SPI.transfer(0x0);
     delay(5);
     unselect_32u4();
+    Serial.println(b, HEX);
   }
 }
 
@@ -129,13 +131,22 @@ ISR(BGEIGIE_32U4_IRQ)
   {
     select_32u4();
     uint8_t b = spi_rx_byte();
+    delay(10);
+/*
     for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
+    {
       buffer[i] = spi_rx_byte();
-      
+      delay(10);
+    }
+    */
     unselect_32u4();
+
     Serial.print("Received bytes: ");
+    Serial.println(b);
+    /*
     for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
       Serial.println(buffer[i]);
+      */
 
 /*
     // light LED off

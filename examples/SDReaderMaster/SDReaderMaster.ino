@@ -35,6 +35,6 @@ void loop()
     seconds = m;
   }
   */
-  //digitalWrite(led, digitalRead(irq_32u4));
+  digitalWrite(led, digitalRead(irq_32u4));
 }
 
