@@ -175,25 +175,23 @@ uint8_t sd_raw_init()
     configure_pin_available();
     configure_pin_locked();
 
-    /* enable outputs for MOSI, SCK, SS, input for MISO */
-    configure_pin_mosi();
-    configure_pin_sck();
-    configure_pin_ss();
-    configure_pin_miso();
+    // SS input
+    DDRB &= ~(1 << DDB0);
+    PORTB &= ~(1 << PORTB0);
+    // SCK input
+    DDRB &= ~(1 << DDB1);
+    PORTB &= ~(1 << PORTB1);
+    // MOSI input
+    DDRB &= ~(1 << DDB2);
+    PORTB &= ~(1 << PORTB2);
+    // MISO output
+    DDRB |= (1 << DDB3);
+
+    // enable SPI
+    SPCR = (1 << SPE);
 
     configure_pin_irq();
     irq_low();
-
-    /* initialize SPI with lowest frequency; max. 400kHz during identification mode of card */
-    SPCR = (0 << SPIE) | /* SPI Interrupt Enable */
-           (1 << SPE)  | /* SPI Enable */
-           (0 << DORD) | /* Data Order: MSB first */
-           (0 << MSTR) | /* Master mode */
-           (0 << CPOL) | /* Clock Polarity: SCK low when idle */
-           (0 << CPHA) | /* Clock Phase: sample on rising SCK edge */
-           (0 << SPR1) | /* Clock Frequency: f_OSC / 4 */
-           (0 << SPR0);
-    SPSR |= (1 << SPI2X); /* Clock Frequency: f_OSC / 2 */
 
     /* test SPI IRQ based communication */
     sd_raw_send_command(0xff, 0x00);
@@ -248,12 +246,10 @@ uint8_t sd_raw_locked()
  */
 void sd_raw_send_byte(uint8_t b)
 {
-    SPDR = b;
-    irq_high();
-    /* wait for byte to be shifted out */
-    while(!(SPSR & (1 << SPIF)));
-    SPSR &= ~(1 << SPIF);
-    irq_low();
+  SPDR = b;
+  /* Wait for reception complete */
+  while(!(SPSR & (1<<SPIF)))
+    ;
 }
 
 /**
@@ -265,14 +261,12 @@ void sd_raw_send_byte(uint8_t b)
  */
 uint8_t sd_raw_rec_byte()
 {
-    /* send dummy data for receiving some */
-    SPDR = 0xff;
-    irq_high();
-    while(!(SPSR & (1 << SPIF)));
-    SPSR &= ~(1 << SPIF);
-    irq_low();
-
-    return SPDR;
+  SPDR = 0x0;
+  /* Wait for reception complete */
+  while(!(SPSR & (1<<SPIF)))
+    ;
+  /* Return Data Register */
+  return SPDR;
 }
 
 /**

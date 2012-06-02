@@ -24,8 +24,13 @@ void sd_reader_setup()
 {
   // initlalize all the pins
   pinMode(cs_32u4, OUTPUT);
+  unselect_32u4();    // unselect
+
   pinMode(cs_sd, OUTPUT);
+  unselect_sd();
+
   pinMode(sd_pwr, OUTPUT);
+  sd_power_off();
 
   // configure SPI pins
   pinMode(MISO, INPUT);
@@ -35,10 +40,10 @@ void sd_reader_setup()
   pinMode(SS, OUTPUT);
 
   // configure SPI
-  SPI.begin();
   SPI.setBitOrder(MSBFIRST);
-  SPI.setClockDivider(SPI_CLOCK_DIV2);
   SPI.setDataMode(SPI_MODE0);
+  SPI.setClockDivider(SPI_CLOCK_DIV2);
+  SPI.begin();
 
   pinMode(sd_detect, INPUT);
   digitalWrite(sd_detect, HIGH);
@@ -48,6 +53,14 @@ void sd_reader_setup()
 
   pinMode(irq_32u4, INPUT); // IRQ
   CFG_SD_READER_INTP();     // set pin change interrupt
+
+  if (digitalRead(irq_32u4))
+  {
+    Serial.println("Transmit something to deblock SPI.");
+    select_32u4();
+    SPI.transfer(0x0);
+    unselect_32u4();
+  }
 }
 
 void sd_reader_loop()
@@ -107,7 +120,13 @@ ISR(BGEIGIE_32U4_IRQ)
 
   if (pinval)
   {
+    select_32u4();
+    uint8_t b = spi_rx_byte();
+    unselect_32u4();
+    Serial.print("Received byte: ");
+    Serial.println(b);
 
+/*
     // light LED off
     digitalWrite(led, HIGH);
     Serial.println("Hello from interrupt!");
@@ -176,6 +195,7 @@ ISR(BGEIGIE_32U4_IRQ)
 
     // light LED on
     digitalWrite(led, LOW);
+  */
   }
 
   sei(); // enable interrupt
