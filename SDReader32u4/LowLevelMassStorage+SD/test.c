@@ -13,7 +13,21 @@
 #define configure_pin_input() DDRD &= ~(1 << DDD0)
 #define read_input() ((PORTD & _BV(PORTD0)) != 0)
 
+uint8_t spi_rxtx_byte(uint8_t b);
+uint8_t spi_irq(uint8_t b);
+void spi_init();
+
 uint8_t spi_rxtx_byte(uint8_t b)
+{
+  SPDR = b;
+  /* Wait for reception complete */
+  while(!(SPSR & (1<<SPIF)))
+    ;
+  /* Return Data Register */
+  return SPDR;
+}
+
+uint8_t spi_irq(uint8_t b)
 {
   SPDR = b;
   irq_high();
@@ -60,13 +74,22 @@ int main(void)
 
 	for (;;)
 	{
+    while (i < 500000)
+      i++;
+    i = 0;
+
+    LED_on();
+    spi_irq(0xff);
+    LED_off();
+
     while (i < 100000)
       i++;
     i = 0;
 
-
     LED_on();
-    spi_rxtx_byte(b++);
+    spi_irq(0x0);
+    for (i = 0 ; i < 256 ; i++)
+      spi_rxtx_byte((uint8_t)i);
     LED_off();
 /*
     if (i/20000 % 2 == 0)

@@ -7,7 +7,7 @@
 Sd2Card card;
 
 // 512 block buffer to communicate with SD card
-uint8_t *buffer;
+uint8_t buffer[SD_READER_BUF_SIZE];
 
 // Timeout is 30s
 unsigned long last_interrupt;
@@ -54,11 +54,18 @@ void sd_reader_setup()
   pinMode(irq_32u4, INPUT); // IRQ
   CFG_SD_READER_INTP();     // set pin change interrupt
 
+  // initialize buffer to zero
+  for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
+    buffer[i] = 0x0;
+
+  // deblock the SPI if IRQ is high
   if (digitalRead(irq_32u4))
   {
-    Serial.println("Transmit something to deblock SPI.");
+    Serial.println("Unblock SPI.");
     select_32u4();
+    delay(10);
     SPI.transfer(0x0);
+    delay(5);
     unselect_32u4();
   }
 }
@@ -122,9 +129,13 @@ ISR(BGEIGIE_32U4_IRQ)
   {
     select_32u4();
     uint8_t b = spi_rx_byte();
+    for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
+      buffer[i] = spi_rx_byte();
+      
     unselect_32u4();
-    Serial.print("Received byte: ");
-    Serial.println(b);
+    Serial.print("Received bytes: ");
+    for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
+      Serial.println(buffer[i]);
 
 /*
     // light LED off
