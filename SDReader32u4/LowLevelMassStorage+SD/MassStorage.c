@@ -36,6 +36,7 @@
 
 #define  INCLUDE_FROM_MASSSTORAGE_C
 #include "MassStorage.h"
+#include "Lib/sd_raw_config.h"
 
 /** Structure to hold the latest Command Block Wrapper issued by the host, containing a SCSI command to execute. */
 CommandBlockWrapper_t  CommandBlock;
@@ -46,6 +47,12 @@ CommandStatusWrapper_t CommandStatus = { .Signature = CSW_SIGNATURE };
 /** Flag to asynchronously abort any in-progress data transfers upon the reception of a mass storage reset command. */
 volatile bool          IsMassStoreReset = false;
 
+/** A state variable to enable mass storage when connected **/
+#define IDLE 0
+#define CONNECTED 1
+static int state = IDLE;
+
+void delay_loop(uint32_t d);
 
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  enters a loop to run the application tasks in sequence.
@@ -62,8 +69,11 @@ int main(void)
 
 	for (;;)
 	{
-	  // MassStorage_Task();
-		USB_USBTask();
+    //if (CONNECTED)
+    {
+      MassStorage_Task();
+      USB_USBTask();
+    }
 	}
 }
 
@@ -80,8 +90,25 @@ void SetupHardware(void)
 	/* Hardware Initialization */
   LED_init();
 
+  /* configure IRQ pin and set low */
+  configure_pin_irq();
+  irq_low();
+
+
 	//SerialStream_Init(9600, false);
   LED_off();
+
+  // Init SD card manager
+  delay_loop(50000);
+  delay_loop(50000);
+  delay_loop(50000);
+  delay_loop(50000);
+  delay_loop(50000);
+  delay_loop(50000);
+  delay_loop(50000);
+	SDCardManager_Init();
+
+  // Init USB
 	USB_Init();
 }
 
@@ -94,8 +121,11 @@ void EVENT_USB_Device_Connect(void)
 	LED_on();
 
   // Init SD card manager
-	SDCardManager_Init();
-	
+	//SDCardManager_Init();
+
+  // switch to CONNECTED state
+  state = CONNECTED;
+
 	/* Reset the MSReset flag upon connection */
 	IsMassStoreReset = false;
 }
@@ -107,6 +137,9 @@ void EVENT_USB_Device_Disconnect(void)
 {
 	/* Indicate USB not ready */
 	LED_off();
+  
+  // switch to idle state
+  state = IDLE;
 }
 
 /** Event handler for the USB_ConfigurationChanged event. This is fired when the host set the current configuration
@@ -341,4 +374,11 @@ uint8_t StreamCallback_AbortOnMassStoreReset(void)
 	
 	/* Continue with the current stream operation */
 	return STREAMCALLBACK_Continue;
+}
+
+void delay_loop(uint32_t d)
+{
+  uint32_t i = 0x0;
+  for (i = 0x0 ; i < d ; i++);
+  return;
 }

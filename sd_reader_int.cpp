@@ -20,8 +20,16 @@ unsigned long last_interrupt;
 /* CMD24: arg0[31:0]: data address, response R1 */
 #define CMD_WRITE_SINGLE_BLOCK 0x18
 
+/* Custom commands to turn on and off SD card reader */
+#define CMD_SD_ON 0x3c
+#define CMD_SD_OFF 0x3d
+
 void sd_reader_setup()
 {
+#if DEBUG
+  configure_break_pin();
+#endif
+
   // initlalize all the pins
   pinMode(cs_32u4, OUTPUT);
   unselect_32u4();    // unselect
@@ -42,7 +50,7 @@ void sd_reader_setup()
   // configure SPI
   //SPI.setBitOrder(MSBFIRST);
   //SPI.setDataMode(SPI_MODE0);
-  //SPI.setClockDivider(SPI_CLOCK_DIV2);
+  SPI.setClockDivider(SPI_CLOCK_DIV4);  // 2X speed not working now
   SPI.begin();
 
   pinMode(sd_detect, INPUT);
@@ -58,18 +66,12 @@ void sd_reader_setup()
   for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
     buffer[i] = 0x0;
 
-  // deblock the SPI if IRQ is high
-  if (digitalRead(irq_32u4))
-  {
-    uint8_t b;
-    Serial.print("Unblock SPI: ");
-    select_32u4();
-    delay(10);
-    b = SPI.transfer(0x0);
-    delay(5);
-    unselect_32u4();
-    Serial.println(b, HEX);
-  }
+  // initilize SD card
+  if (sd_reader_init())
+    Serial.println("SD initialized.");
+  else
+    Serial.println("SD init failed.");
+
 }
 
 void sd_reader_loop()
@@ -95,7 +97,7 @@ uint8_t sd_reader_init()
   sd_power_on();
 
   // initialize card (starts SPI as well)
-  status = card.init(SPI_FULL_SPEED, cs_sd);
+  status = card.init(SPI_HALF_SPEED, cs_sd);
 
   if (status)
     state = SD_READER;
@@ -117,98 +119,94 @@ ISR(BGEIGIE_32U4_IRQ)
 {
   uint8_t cmd = 0;
   uint32_t arg = 0;
+  uint8_t ret = 0;
 
+  uint8_t sreg_old = SREG;
   cli(); // disable interrupt
 
   // we need to check the pin direction
   //int pinval = PINC & _BV(PINC7);
   int pinval = digitalRead(irq_32u4);
 
-  Serial.print("Interrupted! IRQ=");
-  Serial.println(pinval);
+  //Serial.print("IRQ=");
+  //Serial.println(pinval);
 
   if (pinval)
   {
+
+/* THIS CODE HERE WORKS
     select_32u4();
+    //delay(1);
     uint8_t b = spi_rx_byte();
-    delay(10);
-/*
+
+    //delay(10);
+
     for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
     {
+      delayMicroseconds(10);
       buffer[i] = spi_rx_byte();
-      delay(10);
     }
-    */
+
     unselect_32u4();
+ */
 
-    Serial.print("Received bytes: ");
-    Serial.println(b);
-    /*
-    for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
-      Serial.println(buffer[i]);
-      */
-
-/*
     // light LED off
     digitalWrite(led, HIGH);
-    Serial.println("Hello from interrupt!");
 
     // update timestamp
     last_interrupt = millis();
 
     // get command from 32u4
+    // This is 5 SPI transfers
     select_32u4();
     cmd = spi_rx_byte();
+    spi_delay();
     arg |= ((uint32_t)spi_rx_byte() << 24);
+    spi_delay();
     arg |= ((uint32_t)spi_rx_byte() << 16);
+    spi_delay();
     arg |= ((uint32_t)spi_rx_byte() << 8);
+    spi_delay();
     arg |= ((uint32_t)spi_rx_byte() << 0);
-    spi_rx_byte(); // closing byte
+    spi_delay();
     unselect_32u4();
-
-    Serial.print("Command: ");
-    Serial.println(cmd);
-    Serial.print("Argument: ");
-    Serial.println(arg);
-
-    // initialize if necessary
-    if (state == IDLE)
-    {
-      if (sd_reader_init())
-      {
-        Serial.println("Initialized SD card.");
-        state = SD_READER;
-      }
-      else
-      {
-        Serial.println("Failed SD reader initialization.");
-        // if we fail to init, return error and quit
-        select_32u4();
-        spi_tx_byte(0xff);
-        unselect_32u4();
-        return;
-      }
-    }
 
     // action time!
     switch (cmd)
     {
-      case CMD_READ_SINGLE_BLOCK:
-        Serial.print("R ");
-        Serial.println(arg);
+      case 0x40 | CMD_SD_ON:
+        ret = 0x0;
+        // initialize SD card
+        /*
+        if (!sd_reader_init())
+          ret = 0xff; // fail value
+          */
+        // send return value
+        select_32u4();
+        spi_tx_byte(ret);
+        unselect_32u4();
+        break;
+
+      case 0x40 | CMD_SD_OFF:
+        // turn SD card off
+        sd_power_off();
+        state = IDLE;
+        // send response
+        select_32u4();
+        spi_tx_byte(0x0);
+        unselect_32u4();
+        break;
+
+      case 0x40 | CMD_READ_SINGLE_BLOCK:
         sd_reader_read_block(arg);
         break;
 
-      case CMD_WRITE_SINGLE_BLOCK:
-        Serial.print("W ");
-        Serial.println(arg);
+      case 0x40 | CMD_WRITE_SINGLE_BLOCK:
         sd_reader_write_block(arg);
         break;
       
       default:
         // return fail value
-        Serial.print("Unknown: ");
-        Serial.println(arg);
         select_32u4();
         spi_tx_byte(0xff);
         unselect_32u4();
@@ -217,10 +215,9 @@ ISR(BGEIGIE_32U4_IRQ)
 
     // light LED on
     digitalWrite(led, LOW);
-  */
   }
 
-  sei(); // enable interrupt
+  SREG = sreg_old; // enable interrupt
 
 }
 
@@ -230,6 +227,10 @@ uint8_t sd_reader_read_block(uint32_t arg)
   if (!card.readBlock(arg, buffer))
   {
     // failure
+    select_32u4();
+    spi_tx_byte(0xff);   // signal failure
+    unselect_32u4();
+    Serial.println("Failed to read block.");
     return 0;
   }
 
@@ -237,14 +238,24 @@ uint8_t sd_reader_read_block(uint32_t arg)
   select_32u4();
 
   spi_tx_byte(0x0);   // signal success
+  spi_delay();
 
   spi_tx_byte(0xfe);  // magic number
+  spi_delay();
 
   for (uint16_t i = 0 ; i < 512 ; i++) // send block
+  {
     spi_tx_byte(buffer[i]);
+    spi_delay();
+  }
 
   spi_tx_byte(0xff);   // dummy data for CRC
+  spi_delay();
   spi_tx_byte(0xff);   // dummy data for CRC
+
+#if DEBUG
+  break_point();
+#endif
 
   unselect_32u4();
 
@@ -258,13 +269,19 @@ uint8_t sd_reader_write_block(uint32_t arg)
   select_32u4();
 
   spi_tx_byte(0x0);   // signal success
+  spi_delay();
 
   while (spi_rx_byte() != 0xfe);  // wait beginning of transfer
+    spi_delay();
 
   for (uint16_t i = 0 ; i < 512 ; i++) // send block
+  {
     buffer[i] = spi_rx_byte();
+    spi_delay();
+  }
 
   spi_rx_byte();   // receive dummy CRC
+  spi_delay();
   spi_rx_byte();   // receive dummy CRC
 
   unselect_32u4();

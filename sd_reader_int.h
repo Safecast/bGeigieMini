@@ -25,7 +25,9 @@
 static uint8_t state = IDLE;
 
 // buffer SIZE
-#define SD_READER_BUF_SIZE 1
+#define SD_READER_BUF_SIZE 512
+
+#define spi_delay() delayMicroseconds(10)
 
 // IRQ is pin 23 (PORTC7)
 static const int cs_32u4 = 0;
@@ -34,6 +36,17 @@ static const int cs_sd = 12;
 static const int sd_pwr = 14;
 static const int sd_detect = 20;
 static const int led = 13;
+
+#define DEBUG 1
+
+#if DEBUG
+static const int break_pin = 16;
+#define configure_break_pin() pinMode(break_pin, OUTPUT); \
+                              digitalWrite(break_pin, LOW)
+#define break_point() digitalWrite(break_pin, HIGH); \
+                      delayMicroseconds(10); \
+                      digitalWrite(break_pin, LOW)
+#endif
 
 #define select_32u4() digitalWrite(cs_32u4, LOW)
 #define unselect_32u4() digitalWrite(cs_32u4, HIGH)

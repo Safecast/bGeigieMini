@@ -97,6 +97,10 @@
 /* CMD59: arg0[31:1]: stuff bits, arg0[0:0]: crc option, response R1 */
 #define CMD_CRC_ON_OFF 0x3b
 
+/* Custom commands to turn on and off SD card reader */
+#define CMD_SD_ON 0x3c
+#define CMD_SD_OFF 0x3d
+
 /* command responses */
 /* R1: size 1 byte */
 #define R1_IDLE_STATE 0
@@ -159,6 +163,7 @@ static uint8_t raw_block_written;
 static uint8_t sd_raw_card_type;
 
 /* private helper functions */
+void sd_raw_spi_init(void);
 static void sd_raw_send_byte(uint8_t b);
 static uint8_t sd_raw_rec_byte(void);
 static uint8_t sd_raw_send_command(uint8_t command, uint32_t arg);
@@ -171,30 +176,24 @@ static uint8_t sd_raw_send_command(uint8_t command, uint32_t arg);
  */
 uint8_t sd_raw_init()
 {
+    uint8_t b;
+
     /* enable inputs for reading card status */
     configure_pin_available();
     configure_pin_locked();
 
-    // SS input
-    DDRB &= ~(1 << DDB0);
-    PORTB &= ~(1 << PORTB0);
-    // SCK input
-    DDRB &= ~(1 << DDB1);
-    PORTB &= ~(1 << PORTB1);
-    // MOSI input
-    DDRB &= ~(1 << DDB2);
-    PORTB &= ~(1 << PORTB2);
-    // MISO output
-    DDRB |= (1 << DDB3);
+    sd_raw_spi_init();
 
-    // enable SPI
-    SPCR = (1 << SPE);
-
-    configure_pin_irq();
-    irq_low();
+    //configure_pin_irq();
+    //irq_low();
 
     /* test SPI IRQ based communication */
-    sd_raw_send_command(0xff, 0x00);
+    irq_high();
+    b = sd_raw_send_command(CMD_SD_ON, 0x12345678);
+    irq_low();
+
+    if (b == 0xff)
+      return 0;
 
     /* initialization procedure */
     sd_raw_card_type = 0;
@@ -239,6 +238,38 @@ uint8_t sd_raw_locked()
 
 /**
  * \ingroup sd_raw
+ * Initialize the SPI port as slave
+ *
+ * \return nothing
+ */
+void sd_raw_spi_init(void)
+{
+  uint8_t b;
+  // SS input
+  configure_pin_ss();
+  // SCK input
+  configure_pin_sck();
+  // MOSI input
+  configure_pin_mosi();
+  // MISO output
+  configure_pin_miso();
+
+  // enable double-speed
+  // NOT WORKING YET
+  //SPSR |= (1 << SPI2X);
+
+  // enable SPI
+  SPCR = (1 << SPE);
+
+  // reading these two register should start spi
+  b = SPDR;
+  b = SPSR;
+
+  return;
+}
+
+/**
+ * \ingroup sd_raw
  * Sends a raw byte to the memory card.
  *
  * \param[in] b The byte to sent.
@@ -250,6 +281,7 @@ void sd_raw_send_byte(uint8_t b)
   /* Wait for reception complete */
   while(!(SPSR & (1<<SPIF)))
     ;
+  return;
 }
 
 /**
@@ -282,7 +314,7 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     uint8_t response;
 
     /* wait some clock cycles */
-    sd_raw_rec_byte();
+    // sd_raw_rec_byte();
 
     /* send command via SPI */
     sd_raw_send_byte(0x40 | command);
@@ -290,6 +322,7 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     sd_raw_send_byte((arg >> 16) & 0xff);
     sd_raw_send_byte((arg >> 8) & 0xff);
     sd_raw_send_byte((arg >> 0) & 0xff);
+    /*
     switch(command)
     {
         case CMD_GO_IDLE_STATE:
@@ -302,14 +335,10 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
            sd_raw_send_byte(0xff);
            break;
     }
+    */
     
     /* receive response */
-    for(uint8_t i = 0; i < 10; ++i)
-    {
-        response = sd_raw_rec_byte();
-        if(response != 0xff)
-            break;
-    }
+    response = sd_raw_rec_byte();
 
     return response;
 }
@@ -349,7 +378,7 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
 #endif
 
             /* address card */
-            //irq_high();
+            irq_high();
 
             /* send single block request */
 #if SD_RAW_SDHC
@@ -358,12 +387,13 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
             if(sd_raw_send_command(CMD_READ_SINGLE_BLOCK, block_address))
 #endif
             {
-                //irq_low();
+                irq_low();
                 return 0;
             }
 
             /* wait for data block (start byte 0xfe) */
-            while(sd_raw_rec_byte() != 0xfe);
+            //while(sd_raw_rec_byte() != 0xfe);
+            sd_raw_send_byte(0xef);
 
 #if SD_RAW_SAVE_RAM
             /* read byte block */
@@ -381,19 +411,17 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
                 *cache++ = sd_raw_rec_byte();
             raw_block_address = block_address;
 
+            /* read crc16 */
+            sd_raw_send_byte(0xab);
+            sd_raw_send_byte(0xcd);
+            
+
             memcpy(buffer, raw_block + block_offset, read_length);
             buffer += read_length;
 #endif
             
-            /* read crc16 */
-            sd_raw_rec_byte();
-            sd_raw_rec_byte();
-            
-            /* let card some time to finish */
-            sd_raw_rec_byte();
-
             /* deaddress card */
-            //irq_low();
+            irq_low();
         }
 #if !SD_RAW_SAVE_RAM
         else
@@ -599,7 +627,7 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         }
 
         /* address card */
-        //irq_high();
+        irq_high();
 
         /* send single block request */
 #if SD_RAW_SDHC
@@ -608,7 +636,7 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         if(sd_raw_send_command(CMD_WRITE_SINGLE_BLOCK, block_address))
 #endif
         {
-            //irq_low();
+            irq_low();
             return 0;
         }
 
@@ -624,12 +652,8 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         sd_raw_send_byte(0xff);
         sd_raw_send_byte(0xff);
 
-        /* wait while card is busy */
-        while(sd_raw_rec_byte() != 0xff);
-        sd_raw_rec_byte();
-
         /* deaddress card */
-        //irq_low();
+        irq_low();
 
         buffer += write_length;
         offset += write_length;

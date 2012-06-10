@@ -74,9 +74,9 @@ extern "C"
 
 /* defines for customisation of sd/mmc port access */
 #if defined(__AVR_ATmega32U4__)
-    #define configure_pin_mosi() DDRB &= ~(1 << DDB2)   // MOSI input
-    #define configure_pin_sck() DDRB &= ~(1 << DDB1)    // SCK input
-    #define configure_pin_ss() DDRB &= ~(1 << DDB0)     // SS input
+    #define configure_pin_mosi() DDRB &= ~(1 << DDB2); PORTB &= ~(1 << PORTB2)
+    #define configure_pin_sck() DDRB &= ~(1 << DDB1); PORTB &= ~(1 << PORTB1)
+    #define configure_pin_ss() DDRB &= ~(1 << DDB0); PORTB &= ~(1 << PORTB0)
     #define configure_pin_miso() DDRB |= (1 << DDB3)    // MISO output
 
     #define configure_pin_irq() DDRB |= (1 << DDB7)

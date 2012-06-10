@@ -14,13 +14,22 @@
 #define read_input() ((PORTD & _BV(PORTD0)) != 0)
 
 uint8_t spi_rxtx_byte(uint8_t b);
+uint8_t spi_rx_byte(void);
+void spi_tx_byte(uint8_t b);
 uint8_t spi_irq(uint8_t b);
 void spi_init(void);
 void delay_loop(uint32_t d);
+uint8_t buffer[256];
 
 int main(void)
 {
-  uint32_t i = 0;
+  int i = 0;
+
+  while (i < 256)
+  {
+    buffer[i] = (uint8_t)(255 - i);
+    i++;
+  }
 
   LED_init();
   LED_off();
@@ -42,42 +51,31 @@ int main(void)
 
 	for (;;)
 	{
+    uint8_t byte = 0x0;
     delay_loop(100000);
     LED_off();
     delay_loop(100000);
     LED_on();
 
-    spi_irq((uint8_t)i++);
+    // Interrupt ReQuest to 1284p
+    irq_high();
+
+    // wait for SS to go low
+    //while (!(PORTB & (1 << PORTB0)));
+
+    // initiate
+    byte = spi_rxtx_byte(0xff);
+
+    // send bytes
+    for (i = 0 ; i < 256 ; i++)
+      spi_tx_byte(buffer[i]);
+
+    irq_low();
+
+    delay_loop(1000);
     //spi_rxtx(0x01);
     LED_off();
 
-    /*
-    irq_high();
-    for (i = 0 ; i < 256 ; i++)
-      spi_rxtx_byte((uint8_t)i);
-    irq_low();
-    */
-
-/*
-    if (i/20000 % 2 == 0)
-    {
-      LED_off();
-      irq_low();
-    }
-    else
-    {
-      LED_on();
-      SPDR = b++;
-      //irq_high();
-      //c = 0;
-      //while (c++ < 128);
-      // wait for byte to be shifted out
-      while(!(SPSR & (1 << SPIF)));
-      SPSR &= ~(1 << SPIF);
-      //irq_low();
-    }
-    i++;
-    */
   }
 }
 
@@ -89,6 +87,26 @@ uint8_t spi_rxtx_byte(uint8_t b)
     ;
   /* Return Data Register */
   return SPDR;
+}
+
+uint8_t spi_rx_byte(void)
+{
+  SPDR = 0x0;
+  /* Wait for reception complete */
+  while(!(SPSR & (1<<SPIF)))
+    ;
+  /* Return Data Register */
+  return SPDR;
+}
+
+void spi_tx_byte(uint8_t b)
+{
+  SPDR = b;
+  /* Wait for reception complete */
+  while(!(SPSR & (1<<SPIF)))
+    ;
+  /* Return Data Register */
+  return;
 }
 
 uint8_t spi_irq(uint8_t b)
@@ -119,6 +137,7 @@ void spi_init(void)
   DDRB |= (1 << DDB3);
 
   // enable double-speed
+  // NOT WORKING YET
   //SPSR |= (1 << SPI2X);
 
   // enable SPI
