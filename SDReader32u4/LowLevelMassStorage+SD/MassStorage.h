@@ -48,7 +48,6 @@
 
 		#include <LUFA/Version.h>
 		#include <LUFA/Drivers/USB/USB.h>
-		#include <LUFA/Drivers/Board/LEDs.h>
 		#include <LUFA/Drivers/Peripheral/SerialStream.h>
 
 	/* Macros: */
@@ -148,10 +147,5 @@
 
 		uint8_t StreamCallback_AbortOnMassStoreReset(void);
 
-    /* define LED macro */
-    #define LED_init() DDRC |= (1 << DDC7)
-    #define LED_on() PORTC |= (1 << PORTC7)
-    #define LED_off() PORTC &= ~(1 << PORTC7)
-    
 
 #endif

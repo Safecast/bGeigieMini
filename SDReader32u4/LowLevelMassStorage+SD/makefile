@@ -130,6 +130,7 @@ SRC = $(TARGET).c                                                 \
 	  Lib/SCSI.c                                                  \
 	  Lib/SDCardManager.c                                         \
 	  Lib/sd_raw.c                                                \
+    Lib/Timer.c                                                 \
 	  $(LUFA_PATH)/LUFA/Drivers/Peripheral/SerialStream.c         \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/DevChapter9.c        \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Endpoint.c           \

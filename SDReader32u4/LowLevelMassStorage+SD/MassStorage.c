@@ -37,6 +37,12 @@
 #define  INCLUDE_FROM_MASSSTORAGE_C
 #include "MassStorage.h"
 #include "Lib/sd_raw_config.h"
+#include "Lib/Timer.h"
+
+/* define LED macro */
+#define LED_init() DDRC |= (1 << DDC7)
+#define LED_on() PORTC |= (1 << PORTC7)
+#define LED_off() PORTC &= ~(1 << PORTC7)
 
 /** Structure to hold the latest Command Block Wrapper issued by the host, containing a SCSI command to execute. */
 CommandBlockWrapper_t  CommandBlock;
@@ -59,9 +65,17 @@ void delay_loop(uint32_t d);
  */
 int main(void)
 {
+  // turn on interrupt
+  sei();
+
+  // config LED
   LED_init();
 	LED_on();
 
+  // init timer
+  timer_init();
+
+  // setup hardware
 	SetupHardware();
 
   LED_off();
@@ -99,14 +113,17 @@ void SetupHardware(void)
   LED_off();
 
   // Init SD card manager
-  delay_loop(50000);
-  delay_loop(50000);
-  delay_loop(50000);
-  delay_loop(50000);
-  delay_loop(50000);
-  delay_loop(50000);
-  delay_loop(50000);
+  delay(1000);
+  LED_on();
+  delay(1000);
+  LED_off();
+  delay(1000);
+  LED_on();
+  delay(1000);
+  LED_off();
+
 	SDCardManager_Init();
+
 
   // Init USB
 	USB_Init();
@@ -119,9 +136,6 @@ void EVENT_USB_Device_Connect(void)
 	
 	/* Indicate USB enumerating */
 	LED_on();
-
-  // Init SD card manager
-	//SDCardManager_Init();
 
   // switch to CONNECTED state
   state = CONNECTED;
@@ -223,6 +237,15 @@ void MassStorage_Task(void)
 	{
 		/* Indicate busy */
 		LED_off();
+    delay(100);
+    LED_on();
+    delay(100);
+    LED_off();
+    delay(100);
+    LED_on();
+    delay(100);
+    LED_off();
+    delay(200);
 
 		/* Process sent command block from the host */
 		if (ReadInCommandBlock())
@@ -253,7 +276,20 @@ void MassStorage_Task(void)
 		else
 		{
 			/* Indicate error reading in the command block from the host */
-			LED_off();
+      LED_off();
+      delay(100);
+      LED_on();
+      delay(100);
+      LED_off();
+      delay(100);
+      LED_on();
+      delay(100);
+      LED_off();
+      delay(100);
+      LED_on();
+      delay(100);
+      LED_off();
+      delay(200);
 		}
 	}
 
