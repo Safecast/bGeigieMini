@@ -24,6 +24,10 @@ unsigned long last_interrupt;
 #define CMD_SD_ON 0x3c
 #define CMD_SD_OFF 0x3d
 
+/* Custom command to request CID and CSD */
+#define CMD_REQ_INFO 0x3e
+
+
 void sd_reader_setup()
 {
 #if DEBUG
@@ -204,6 +208,10 @@ ISR(BGEIGIE_32U4_IRQ)
       case 0x40 | CMD_WRITE_SINGLE_BLOCK:
         sd_reader_write_block(arg);
         break;
+
+      case 0x40 | CMD_REQ_INFO:
+        sd_reader_get_info();
+        break;
       
       default:
         // return fail value
@@ -293,5 +301,70 @@ uint8_t sd_reader_write_block(uint32_t arg)
     return 1;
 
 }
+
+void sd_reader_get_info()
+{
+  int i;
+
+  if (!card.readRegister(CMD9, buffer))
+  { // fail
+    select_32u4();
+    spi_tx_byte(0xff);
+    unselect_32u4();
+    return;
+  }
+
+  if (!card.readRegister(CMD10, buffer+16))
+  { // fail
+    select_32u4();
+    spi_tx_byte(0xff);
+    unselect_32u4();
+    return;
+  }
+
+  select_32u4();
+
+  // success!!
+  spi_tx_byte(0x00);
+
+  // wait for magic byte
+  while (spi_rx_byte() != 0xfe);
+
+  spi_delay();
+
+  // send CID
+  for (i = 0 ; i < 16 ; i++)
+  {
+    spi_tx_byte(buffer[i]);
+    delayMicroseconds(20);  // slightly longer delay to allow some processing in slave
+  }
+
+  // CRC
+  spi_rx_byte();
+  spi_delay();
+  spi_rx_byte();
+  
+  // wait for magic byte
+  while (spi_rx_byte() != 0xfe);
+
+  spi_delay();
+
+  // send CSD
+  for (i = 0 ; i < 16 ; i++)
+  {
+    spi_tx_byte(buffer[16+i]);
+    delayMicroseconds(20);
+  }
+
+  // CRC
+  spi_rx_byte();
+  spi_delay();
+  spi_rx_byte();
+
+  unselect_32u4();
+  
+  return;
+}
+
 
 

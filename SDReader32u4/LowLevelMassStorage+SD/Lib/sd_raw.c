@@ -101,6 +101,9 @@
 #define CMD_SD_ON 0x3c
 #define CMD_SD_OFF 0x3d
 
+/* Custom command to request SD card info from master */
+#define CMD_REQ_INFO 0x3e
+
 /* command responses */
 /* R1: size 1 byte */
 #define R1_IDLE_STATE 0
@@ -767,18 +770,17 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
 
     memset(info, 0, sizeof(*info));
 
-#if 0
-    /* It will be nice to have that later */
-
-    select_card();
+    irq_high();
 
     /* read cid register */
-    if(sd_raw_send_command(CMD_SEND_CID, 0))
+    if(sd_raw_send_command(CMD_REQ_INFO, 0))
     {
-        unselect_card();
+        irq_low();
         return 0;
     }
-    while(sd_raw_rec_byte() != 0xfe);
+
+    // Receive CID
+    sd_raw_send_byte(0xfe); // send magic byte
     for(uint8_t i = 0; i < 18; ++i)
     {
         uint8_t b = sd_raw_rec_byte();
@@ -826,12 +828,9 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
 #else
     uint32_t csd_c_size = 0;
 #endif
-    if(sd_raw_send_command(CMD_SEND_CSD, 0))
-    {
-        unselect_card();
-        return 0;
-    }
-    while(sd_raw_rec_byte() != 0xfe);
+
+    // Receive CSD
+    sd_raw_send_byte(0xfe); // send magic byte
     for(uint8_t i = 0; i < 18; ++i)
     {
         uint8_t b = sd_raw_rec_byte();
@@ -902,9 +901,7 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
         }
     }
 
-    unselect_card();
-
-#endif
+    irq_low();
 
     return 1;
 }
