@@ -655,7 +655,13 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         sd_raw_send_byte(0xff);
         sd_raw_send_byte(0xff);
 
-        /* deaddress card */
+        /* check return status */
+        if (sd_raw_rec_byte() == 0x00)
+        { // write fail
+          irq_low();
+          return 0;
+        }
+
         irq_low();
 
         buffer += write_length;
@@ -780,7 +786,6 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
     }
 
     // Receive CID
-    sd_raw_send_byte(0xfe); // send magic byte
     for(uint8_t i = 0; i < 18; ++i)
     {
         uint8_t b = sd_raw_rec_byte();
@@ -830,7 +835,6 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
 #endif
 
     // Receive CSD
-    sd_raw_send_byte(0xfe); // send magic byte
     for(uint8_t i = 0; i < 18; ++i)
     {
         uint8_t b = sd_raw_rec_byte();

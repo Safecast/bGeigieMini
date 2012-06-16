@@ -66,5 +66,6 @@ void sd_reader_loop();
 uint8_t sd_reader_init();
 uint8_t sd_reader_read_block(uint32_t arg);
 uint8_t sd_reader_write_block(uint32_t arg);
+void sd_reader_get_info();
 
 #endif /* __SD_READER_INT_H__ */

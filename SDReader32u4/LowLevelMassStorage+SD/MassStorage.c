@@ -75,6 +75,7 @@ int main(void)
   // init timer
   timer_init();
 
+
   // setup hardware
 	SetupHardware();
 
@@ -108,22 +109,18 @@ void SetupHardware(void)
   configure_pin_irq();
   irq_low();
 
-
-	//SerialStream_Init(9600, false);
+  // wait a little
+  delay(1000);
+  LED_on();
+  delay(1000);
+  LED_off();
+  delay(1000);
+  LED_on();
+  delay(1000);
   LED_off();
 
   // Init SD card manager
-  delay(1000);
-  LED_on();
-  delay(1000);
-  LED_off();
-  delay(1000);
-  LED_on();
-  delay(1000);
-  LED_off();
-
 	SDCardManager_Init();
-
 
   // Init USB
 	USB_Init();
@@ -237,15 +234,6 @@ void MassStorage_Task(void)
 	{
 		/* Indicate busy */
 		LED_off();
-    delay(100);
-    LED_on();
-    delay(100);
-    LED_off();
-    delay(100);
-    LED_on();
-    delay(100);
-    LED_off();
-    delay(200);
 
 		/* Process sent command block from the host */
 		if (ReadInCommandBlock())
@@ -277,19 +265,6 @@ void MassStorage_Task(void)
 		{
 			/* Indicate error reading in the command block from the host */
       LED_off();
-      delay(100);
-      LED_on();
-      delay(100);
-      LED_off();
-      delay(100);
-      LED_on();
-      delay(100);
-      LED_off();
-      delay(100);
-      LED_on();
-      delay(100);
-      LED_off();
-      delay(200);
 		}
 	}
 

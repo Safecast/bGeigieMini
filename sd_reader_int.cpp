@@ -3,6 +3,11 @@
 #include <SD.h>
 #include "sd_reader_int.h"
 
+#ifdef SD_PROTECT_BLOCK_ZERO
+#undef SD_PROTECT_BLOCK_ZERO
+#define SD_PROTECT_BLOCK_ZERO 0
+#endif
+
 // SD card object
 Sd2Card card;
 
@@ -52,8 +57,8 @@ void sd_reader_setup()
   pinMode(SS, OUTPUT);
 
   // configure SPI
-  //SPI.setBitOrder(MSBFIRST);
-  //SPI.setDataMode(SPI_MODE0);
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
   SPI.setClockDivider(SPI_CLOCK_DIV4);  // 2X speed not working now
   SPI.begin();
 
@@ -80,6 +85,7 @@ void sd_reader_setup()
 
 void sd_reader_loop()
 {
+/*
   unsigned long now = millis();
   if (state == SD_READER && now - last_interrupt > SD_READER_TIMEOUT)
   {
@@ -87,6 +93,7 @@ void sd_reader_loop()
     sd_power_off();
     state = IDLE;
   }
+  */
 }
 
 uint8_t sd_reader_init()
@@ -138,22 +145,6 @@ ISR(BGEIGIE_32U4_IRQ)
   if (pinval)
   {
 
-/* THIS CODE HERE WORKS
-    select_32u4();
-    //delay(1);
-    uint8_t b = spi_rx_byte();
-
-    //delay(10);
-
-    for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
-    {
-      delayMicroseconds(10);
-      buffer[i] = spi_rx_byte();
-    }
-
-    unselect_32u4();
- */
-
     // light LED off
     digitalWrite(led, HIGH);
 
@@ -163,17 +154,31 @@ ISR(BGEIGIE_32U4_IRQ)
     // get command from 32u4
     // This is 5 SPI transfers
     select_32u4();
+
+    // rx command
+    //delayMicroseconds(100);
     cmd = spi_rx_byte();
     spi_delay();
-    arg |= ((uint32_t)spi_rx_byte() << 24);
+    // rx argument
+    arg = spi_rx_byte();
     spi_delay();
-    arg |= ((uint32_t)spi_rx_byte() << 16);
+    arg = (arg << 8) + spi_rx_byte();
     spi_delay();
-    arg |= ((uint32_t)spi_rx_byte() << 8);
+    arg = (arg << 8) + spi_rx_byte();
     spi_delay();
-    arg |= ((uint32_t)spi_rx_byte() << 0);
+    arg = (arg << 8) + spi_rx_byte();
     spi_delay();
+
     unselect_32u4();
+
+    //Serial.print(cmd, HEX);
+    //Serial.print(" ");
+    //Serial.println(arg, HEX);
+
+#if DEBUG
+    if (cmd == 0x0)
+      break_point();
+#endif
 
     // action time!
     switch (cmd)
@@ -232,7 +237,7 @@ ISR(BGEIGIE_32U4_IRQ)
 uint8_t sd_reader_read_block(uint32_t arg)
 {
   // read block from card
-  if (!card.readBlock(arg, buffer))
+  if (!card.readBlock(arg >> 9, buffer))
   {
     // failure
     select_32u4();
@@ -261,10 +266,6 @@ uint8_t sd_reader_read_block(uint32_t arg)
   spi_delay();
   spi_tx_byte(0xff);   // dummy data for CRC
 
-#if DEBUG
-  break_point();
-#endif
-
   unselect_32u4();
 
   return 1;
@@ -288,17 +289,31 @@ uint8_t sd_reader_write_block(uint32_t arg)
     spi_delay();
   }
 
-  spi_rx_byte();   // receive dummy CRC
+  spi_tx_byte(0xe4);   // receive dummy CRC
   spi_delay();
-  spi_rx_byte();   // receive dummy CRC
+  spi_tx_byte(0xd0);   // receive dummy CRC
+  spi_delay();
 
   unselect_32u4();
 
   // write block from card
-  if (!card.writeBlock(arg, buffer))
+  if (!card.writeBlock(arg >> 9, buffer))
+  {
+    select_32u4();
+    spi_delay();
+    //spi_tx_byte(0x0); // failure code
+    spi_tx_byte(0xff); // always success
+    unselect_32u4();
     return 0;
+  }
   else
+  {
+    select_32u4();
+    spi_delay();
+    spi_tx_byte(0xff); // success code
+    unselect_32u4();
     return 1;
+  }
 
 }
 
@@ -306,7 +321,7 @@ void sd_reader_get_info()
 {
   int i;
 
-  if (!card.readRegister(CMD9, buffer))
+  if (!card.readCID((cid_t *)buffer))
   { // fail
     select_32u4();
     spi_tx_byte(0xff);
@@ -314,7 +329,7 @@ void sd_reader_get_info()
     return;
   }
 
-  if (!card.readRegister(CMD10, buffer+16))
+  if (!card.readCSD((csd_t *)(buffer+16)))
   { // fail
     select_32u4();
     spi_tx_byte(0xff);
@@ -327,9 +342,6 @@ void sd_reader_get_info()
   // success!!
   spi_tx_byte(0x00);
 
-  // wait for magic byte
-  while (spi_rx_byte() != 0xfe);
-
   spi_delay();
 
   // send CID
@@ -340,15 +352,11 @@ void sd_reader_get_info()
   }
 
   // CRC
-  spi_rx_byte();
-  spi_delay();
-  spi_rx_byte();
+  spi_tx_byte(0xff);
+  delayMicroseconds(20);
+  spi_tx_byte(0xff);
+  delayMicroseconds(20);
   
-  // wait for magic byte
-  while (spi_rx_byte() != 0xfe);
-
-  spi_delay();
-
   // send CSD
   for (i = 0 ; i < 16 ; i++)
   {
