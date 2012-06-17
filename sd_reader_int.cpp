@@ -262,9 +262,9 @@ uint8_t sd_reader_read_block(uint32_t arg)
     spi_delay();
   }
 
-  spi_tx_byte(0xff);   // dummy data for CRC
+  spi_tx_byte(0x12);   // dummy data for CRC
   spi_delay();
-  spi_tx_byte(0xff);   // dummy data for CRC
+  spi_tx_byte(0x34);   // dummy data for CRC
 
   unselect_32u4();
 
@@ -289,9 +289,9 @@ uint8_t sd_reader_write_block(uint32_t arg)
     spi_delay();
   }
 
-  spi_tx_byte(0xe4);   // receive dummy CRC
+  spi_tx_byte(0xAB);   // receive dummy CRC
   spi_delay();
-  spi_tx_byte(0xd0);   // receive dummy CRC
+  spi_tx_byte(0xCD);   // receive dummy CRC
   spi_delay();
 
   unselect_32u4();
@@ -352,9 +352,9 @@ void sd_reader_get_info()
   }
 
   // CRC
-  spi_tx_byte(0xff);
+  spi_tx_byte(0x66);
   delayMicroseconds(20);
-  spi_tx_byte(0xff);
+  spi_tx_byte(0x66);
   delayMicroseconds(20);
   
   // send CSD
@@ -365,9 +365,9 @@ void sd_reader_get_info()
   }
 
   // CRC
-  spi_rx_byte();
+  spi_tx_byte(0x56);
   spi_delay();
-  spi_rx_byte();
+  spi_tx_byte(0x78);
 
   unselect_32u4();
   

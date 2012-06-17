@@ -191,9 +191,7 @@ uint8_t sd_raw_init()
     //irq_low();
 
     /* test SPI IRQ based communication */
-    irq_high();
     b = sd_raw_send_command(CMD_SD_ON, 0x12345678);
-    irq_low();
 
     if (b == 0xff)
       return 0;
@@ -319,6 +317,9 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     /* wait some clock cycles */
     // sd_raw_rec_byte();
 
+    /* interrupt request */
+    irq_high();
+
     /* send command via SPI */
     sd_raw_send_byte(0x40 | command);
     sd_raw_send_byte((arg >> 24) & 0xff);
@@ -342,6 +343,9 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     
     /* receive response */
     response = sd_raw_rec_byte();
+
+    /* finish interrupt request */
+    irq_low();
 
     return response;
 }
@@ -380,9 +384,6 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
                 return 0;
 #endif
 
-            /* address card */
-            irq_high();
-
             /* send single block request */
 #if SD_RAW_SDHC
             if(sd_raw_send_command(CMD_READ_SINGLE_BLOCK, (sd_raw_card_type & (1 << SD_RAW_SPEC_SDHC) ? block_address / 512 : block_address)))
@@ -390,7 +391,6 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
             if(sd_raw_send_command(CMD_READ_SINGLE_BLOCK, block_address))
 #endif
             {
-                irq_low();
                 return 0;
             }
 
@@ -422,10 +422,7 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
             memcpy(buffer, raw_block + block_offset, read_length);
             buffer += read_length;
 #endif
-            
-            /* deaddress card */
-            irq_low();
-        }
+        }    
 #if !SD_RAW_SAVE_RAM
         else
         {
@@ -500,9 +497,6 @@ uint8_t sd_raw_read_interval(offset_t offset, uint8_t* buffer, uintptr_t interva
         block_offset = offset & 0x01ff;
         read_length = 512 - block_offset;
 
-        /* IRQ to 1284p */
-        irq_high();
-        
         /* send single block request */
 #if SD_RAW_SDHC
         if(sd_raw_send_command(CMD_READ_SINGLE_BLOCK, (sd_raw_card_type & (1 << SD_RAW_SPEC_SDHC) ? offset / 512 : offset - block_offset)))
@@ -510,7 +504,6 @@ uint8_t sd_raw_read_interval(offset_t offset, uint8_t* buffer, uintptr_t interva
         if(sd_raw_send_command(CMD_READ_SINGLE_BLOCK, offset - block_offset))
 #endif
         {
-            //irq_low();
             return 0;
         }
 
@@ -557,12 +550,6 @@ uint8_t sd_raw_read_interval(offset_t offset, uint8_t* buffer, uintptr_t interva
 
     } while(!finished);
     
-    /* deaddress card */
-    //irq_low();
-
-    /* let card some time to finish */
-    sd_raw_rec_byte();
-
     return 1;
 #endif
 }
@@ -629,9 +616,6 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
 #endif
         }
 
-        /* address card */
-        irq_high();
-
         /* send single block request */
 #if SD_RAW_SDHC
         if(sd_raw_send_command(CMD_WRITE_SINGLE_BLOCK, (sd_raw_card_type & (1 << SD_RAW_SPEC_SDHC) ? block_address / 512 : block_address)))
@@ -639,7 +623,6 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         if(sd_raw_send_command(CMD_WRITE_SINGLE_BLOCK, block_address))
 #endif
         {
-            irq_low();
             return 0;
         }
 
@@ -658,11 +641,8 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         /* check return status */
         if (sd_raw_rec_byte() == 0x00)
         { // write fail
-          irq_low();
           return 0;
         }
-
-        irq_low();
 
         buffer += write_length;
         offset += write_length;
@@ -776,12 +756,9 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
 
     memset(info, 0, sizeof(*info));
 
-    irq_high();
-
     /* read cid register */
     if(sd_raw_send_command(CMD_REQ_INFO, 0))
     {
-        irq_low();
         return 0;
     }
 
@@ -904,8 +881,6 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
             }
         }
     }
-
-    irq_low();
 
     return 1;
 }
