@@ -27,7 +27,7 @@ static uint8_t state = IDLE;
 // buffer SIZE
 #define SD_READER_BUF_SIZE 512
 
-#define spi_delay() delayMicroseconds(10)
+#define spi_delay() delayMicroseconds(20)
 
 // IRQ is pin 23 (PORTC7)
 static const int cs_32u4 = 0;

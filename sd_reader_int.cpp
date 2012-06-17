@@ -3,11 +3,6 @@
 #include <SD.h>
 #include "sd_reader_int.h"
 
-#ifdef SD_PROTECT_BLOCK_ZERO
-#undef SD_PROTECT_BLOCK_ZERO
-#define SD_PROTECT_BLOCK_ZERO 0
-#endif
-
 // SD card object
 Sd2Card card;
 
@@ -139,9 +134,6 @@ ISR(BGEIGIE_32U4_IRQ)
   //int pinval = PINC & _BV(PINC7);
   int pinval = digitalRead(irq_32u4);
 
-  //Serial.print("IRQ=");
-  //Serial.println(pinval);
-
   if (pinval)
   {
 
@@ -156,7 +148,6 @@ ISR(BGEIGIE_32U4_IRQ)
     select_32u4();
 
     // rx command
-    //delayMicroseconds(100);
     cmd = spi_rx_byte();
     spi_delay();
     // rx argument
@@ -171,9 +162,12 @@ ISR(BGEIGIE_32U4_IRQ)
 
     unselect_32u4();
 
-    //Serial.print(cmd, HEX);
-    //Serial.print(" ");
-    //Serial.println(arg, HEX);
+    if (cmd == (0x40 | CMD_WRITE_SINGLE_BLOCK))
+    {
+      Serial.print(cmd, HEX);
+      Serial.print(" ");
+      Serial.println(arg, HEX);
+    }
 
 #if DEBUG
     if (cmd == 0x0)
@@ -274,14 +268,35 @@ uint8_t sd_reader_read_block(uint32_t arg)
 
 uint8_t sd_reader_write_block(uint32_t arg)
 {
+  uint8_t b = 0;
+
   // send back to 32u4
   select_32u4();
 
   spi_tx_byte(0x0);   // signal success
   spi_delay();
 
+  spi_delay();
+  spi_delay();
+  spi_delay();
+  /*
   while (spi_rx_byte() != 0xfe);  // wait beginning of transfer
+  {
+#if DEBUG
+    if (b > 10)
+    {
+      Serial.println("Caught in loop");
+      break_point();
+    }
+    b++;
+#endif
     spi_delay();
+  }
+  */
+  spi_rx_byte();
+  spi_delay();
+  spi_delay();
+
 
   for (uint16_t i = 0 ; i < 512 ; i++) // send block
   {
