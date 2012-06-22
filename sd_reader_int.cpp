@@ -82,11 +82,11 @@ void sd_reader_loop()
 {
 /*
   unsigned long now = millis();
-  if (state == SD_READER && now - last_interrupt > SD_READER_TIMEOUT)
+  if (sd_reader_state == SD_READER_ACTIVE && now - last_interrupt > SD_READER_TIMEOUT)
   {
     Serial.println("SD reader timeout. Turning off.");
     sd_power_off();
-    state = IDLE;
+    sd_reader_state = SD_READER_IDLE;
   }
   */
 }
@@ -106,7 +106,7 @@ uint8_t sd_reader_init()
   status = card.init(SPI_HALF_SPEED, cs_sd);
 
   if (status)
-    state = SD_READER;
+    sd_reader_state = SD_READER_ACTIVE;
     
   return status;
 }
@@ -162,12 +162,11 @@ ISR(BGEIGIE_32U4_IRQ)
 
     unselect_32u4();
 
-    if (cmd == (0x40 | CMD_WRITE_SINGLE_BLOCK))
-    {
-      Serial.print(cmd, HEX);
-      Serial.print(" ");
-      Serial.println(arg, HEX);
-    }
+/*
+    Serial.print(cmd, HEX);
+    Serial.print(" ");
+    Serial.println(arg, HEX);
+    */
 
 #if DEBUG
     if (cmd == 0x0)
@@ -193,7 +192,7 @@ ISR(BGEIGIE_32U4_IRQ)
       case 0x40 | CMD_SD_OFF:
         // turn SD card off
         sd_power_off();
-        state = IDLE;
+        sd_reader_state = SD_READER_IDLE;
         // send response
         select_32u4();
         spi_tx_byte(0x0);
@@ -268,8 +267,6 @@ uint8_t sd_reader_read_block(uint32_t arg)
 
 uint8_t sd_reader_write_block(uint32_t arg)
 {
-  uint8_t b = 0;
-
   // send back to 32u4
   select_32u4();
 
@@ -279,21 +276,7 @@ uint8_t sd_reader_write_block(uint32_t arg)
   spi_delay();
   spi_delay();
   spi_delay();
-  /*
-  while (spi_rx_byte() != 0xfe);  // wait beginning of transfer
-  {
-#if DEBUG
-    if (b > 10)
-    {
-      Serial.println("Caught in loop");
-      break_point();
-    }
-    b++;
-#endif
-    spi_delay();
-  }
-  */
-  spi_rx_byte();
+  spi_rx_byte();      // was for magic 0xEF (not necessary really)
   spi_delay();
   spi_delay();
 

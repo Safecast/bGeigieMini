@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <avr/interrupt.h> 
+#include <bg_pins.h>
 
 // IRQ is on pin change interrupt 2
 #define BGEIGIE_32U4_IRQ PCINT2_vect
@@ -20,9 +21,9 @@
  */
 
 // Main state variable
-#define IDLE 0
-#define SD_READER 1
-static uint8_t state = IDLE;
+#define SD_READER_IDLE 0
+#define SD_READER_ACTIVE 1
+static uint8_t sd_reader_state = IDLE;
 
 // buffer SIZE
 #define SD_READER_BUF_SIZE 512

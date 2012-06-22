@@ -37,125 +37,67 @@
 #include <GPS.h>
 #include <HardwareCounter.h>
 
+#include <bgeigie.h>
+
+#include "version.h"
+
 #define TIME_INTERVAL 5000
 #define NX 12
-#define DEST_ADDR 0x1234
-#define CHANNEL 20
-#define TX_ENABLED 0
-#define LED_ENABLED 0
-#define PRINT_BUFSZ 80
 #define AVAILABLE 'A'          // indicates geiger data are ready (available)
 #define VOID      'V'          // indicates geiger data not ready (void)
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-// main switch
-static const int main_switch = 2;
+// Radio options
+#define TX_ENABLED 0
+#define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
+#define CHANNEL 20            // transmission channel
 
-// status LED
-static const int led = 15;
-
-// pulse counter input
-static const int count = 1;
-
-// peripherals power, suffixed with active state (l=low, h=high)
-static const int radio_sleep_l = A2;
-static const int sense_pwr_l = 3;
-static const int gps_on_off_h = 13;
-static const int hvps_en_l = 19;
-static const int sd_pwr_l = 14;
-
-// chip selects
-static const int ss = 4;
-static const int cs_radio = A3;
-static const int cs_32u4 = 0;
-static const int cs_sd = 12;
-
-// sensors
-static const int batt_sense = A7;
-static const int temp_sense = A6;
-static const int hv_sense = A5;
-static const int hum_sense = A4;
-
-// SD card detect
-static const int sd_card_detect = 20;
-
-// IRQ
-static const int irq_radio = 22;
-static const int irq_32u4 = 23;
-
+// Geiger rolling and total count
 unsigned long shift_reg[NX] = {0};
 unsigned long reg_index = 0;
 unsigned long total_count = 0;
 int str_count = 0;
 char geiger_status = VOID;
 
-// This is the data file object that we'll use to access the data file
-File dataFile; 
-
 // Hardware counter
-HardwareCounter hwc(1, TIME_INTERVAL);
+HardwareCounter hwc(counts, TIME_INTERVAL);
 
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
 
-static char msg_sd_init[] PROGMEM = "SD init...\n";
-static char msg_card_failure[] PROGMEM = "Card failure...\n";
-static char msg_card_initialized[] PROGMEM = "Card initialized\n";
-static char msg_error_log_file_cannot_open[] PROGMEM = "Error: Log file cannot be opened.\n";
-static char msg_device_id[] PROGMEM = "Device Id: ";
-static char msg_device_id_invalid[] PROGMEM = "Device Id invalid\n";
-
-char filename[13];      // placeholder for filename
-char hdr[6] = "BMRDD";  // header for sentence
-char dev_id[BMRDD_ID_LEN+1];  // device id
+char filename[13];              // placeholder for filename
+char hdr[6] = "BGNRDD";         // BGeigie New RaDiation Detector header
+char hdr_status[6] = "BGNSTS";  // Status message header
+char dev_id[BMRDD_ID_LEN+1];    // device id
 char ext_log[] = ".log";
-char ext_bak[] = ".bak";
-char fileHeader[] = "# NEW LOG\n# format=1.2.0\n";
+char ext_sts[] = ".sts";
  
 // State variables
 int gps_init_acq = 0;
 int log_created = 0;
 
-/**************************************************************************/
-/*!
-
-*/
-/**************************************************************************/
+/* SETUP */
 void setup()
 {
   char tmp[25];
   
   // init serial
   Serial.begin(9600);
-  Serial.println("Helloworld.");
+  Serial.println("Welcome to bGeigie");
 
-  // make sure that the default chip select pin is set to
-  // output, even if you don't use it:
-  pinMode(ss, OUTPUT);
+  // intialize the pins
+  bg_pins_setup();
 
-  pinMode(cs_sd, OUTPUT);
-  digitalWrite(cs_sd, HIGH);     // disable SD card chip select 
-
-  pinMode(cs_32u4, OUTPUT);
-  digitalWrite(cs_32u4, HIGH);   // disable 32u4 chip select
-  
-#if TX_ENABLED
-  pinMode(cs_radio, OUTPUT);
-  digitalWrite(cs_radio, HIGH);    // disable radio chip select
-#endif
-  
-  pinMode(sd_pwr_l, OUTPUT);
-  digitalWrite(sd_pwr_l, LOW);      // turn on SD card power
-
-  pinMode(sense_pwr_l, OUTPUT);
-  digitalWrite(sense_pwr_l, LOW);     // turn sensors on
-
-  pinMode(gps_on_off_h, OUTPUT);
-  digitalWrite(gps_on_off_h, HIGH); // turn GPS on
-  
   // initialize GPS using second Serial connection
+  bg_gps_on();
   gps_init(&Serial1, line);
+
+  // initialize SD card
+  bg_sd_card_init();
+
+  // initialize sensors
+  bg_sensors_config();
   
   // set device id
   pullDevId();
@@ -176,22 +118,6 @@ void setup()
   strcpy_P(tmp, msg_sd_init);
   Serial.print(tmp);
   
-  // see if the card is present and can be initialized:
-  if (!SD.begin(cs_sd)) {
-    // don't do anything more:
-    int printOnce = 1;
-    while(1) 
-    {
-      if (printOnce) {
-        printOnce = 0;
-        strcpy_P(tmp, msg_card_failure);
-        Serial.print(tmp);
-      }
-    }
-  }
-  strcpy_P(tmp, msg_card_initialized);
-  Serial.print(tmp);
-
   // set initial state of Geiger to void
   geiger_status = VOID;
   str_count = 0;
@@ -206,11 +132,7 @@ void setup()
   Serial.println("Starting now!");
 }
 
-/**************************************************************************/
-/*!
-
-*/
-/**************************************************************************/
+/* MAIN LOOP */
 void loop()
 {
   char tmp[25];
@@ -250,130 +172,86 @@ void loop()
       } else {
         geiger_status = AVAILABLE;
       }
-      
-      // generate timestamp. only update the start time if 
-      // we printed the timestamp. otherwise, the GPS is still 
-      // updating so wait until its finished and generate timestamp
-      memset(line, 0, LINE_SZ);
-
-      line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
 
       if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
       {
         // flag GPS acquired
         gps_init_acq = 1;
+
         // Create the filename for that drive
         strcpy(filename, dev_id);
         strcat(filename, "-");
         strncat(filename, gps_getData()->date+2, 2);
         strncat(filename, gps_getData()->date, 2);
-        // print some comment line to mark beginning of new log
+
+        // Prepare new log file header
+        sprintf(line, "# bGeigie - v%s\n# New log begin", version);
+
+        // write to log file on SD card
         strcpy(filename+8, ext_log);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          Serial.print("Filename: ");
-          Serial.println(filename);
-          dataFile.print(fileHeader);
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg_error_log_file_cannot_open);
-          Serial.print(tmp);
-        }
-        // write to backup file as well
-        strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(fileHeader);
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg_error_log_file_cannot_open);
-          Serial.print(tmp);
-        }
+        bg_sd_writeln(filename, line);
+
+        // write to status file as well
+        strcpy(filename+8, ext_sts);
+        bg_sd_writeln(filename, line);
       }
       
-      // turn on SD card power and delay a bit to initialize
-      //digitalWrite(sdPwr, LOW);
-      //delay(10);
+      // generate timestamp. only update the start time if 
+      // we printed the timestamp. otherwise, the GPS is still 
+      // updating so wait until its finished and generate timestamp
+      line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
       
-      // init the SD card see if the card is present and can be initialized:
-      //while (!SD.begin(chipSelect));
-
       if (gps_init_acq == 0)
       {
         Serial.print("No GPS: ");
-        Serial.println(line);
-#if TX_ENABLED
-        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
-#endif
+        bg_sd_last_write = 0;   // because we don't write to SD before GPS lock
       }
       else
       {
         // dump data to SD card
         strcpy(filename+8, ext_log);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          Serial.println(line);
-          dataFile.print(line);
-          dataFile.print("\n");
-          dataFile.close();
-
-  #if TX_ENABLED
-          // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-  #endif
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg_error_log_file_cannot_open);
-          Serial.print(tmp);
-        }   
-        
-        // write to backup file as well
-        strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(line);
-          dataFile.print("\n");
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg_error_log_file_cannot_open);
-          Serial.print(tmp);
-        }
-        
-        //turn off sd power        
-        //digitalWrite(sdPwr, HIGH); 
+        bg_sd_writeln(filename, line);
       }
-    }
-  }
+
+      // output through Serial too
+      Serial.println(line);
+
+#if TX_ENABLED
+      // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+      chibiSleepRadio(0);
+      delay(10);
+      chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+      chibiSleepRadio(1);
+#endif
+
+      // Now take care of the Status message
+      line_len = bg_status_str_gen(line);
+
+      // show in Serial stream
+      Serial.println(line);
+
+      // write to SD status file
+      if (gps_init_acq != 0)
+      {
+        strcpy(filename+8, ext_sts);
+        bg_sd_writeln(filename, line);
+      }
+
+#if TX_ENABLED
+      // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+      chibiSleepRadio(0);
+      delay(10);
+      chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+      chibiSleepRadio(1);
+#endif
+
+    } /* gps_available */
+  } /* hwc_available */
+
 }
 
-/**************************************************************************/
-/*!
-
-*/
-/**************************************************************************/
+/* generate log line */
 byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsigned long cpb)
 {
   byte len;
@@ -412,11 +290,55 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
    return len;
 }
 
-/**************************************************************************/
-/*!
+/* create Status log line */
+byte bg_status_str_gen(char *buf)
+{
+  byte chk;
 
-*/
-/**************************************************************************/
+  // turn sensors on
+  bg_sensors_on();
+  delay(20);
+
+  // read all sensors
+  float temp bg_read_temperature(); // C
+  float hum = bg_read_humidity();   // %
+  float hv = bg_read_hvps();        // V
+  unsigned int batt = (unsigned int)(1000*bg_read_battery()); // mV
+
+  // turn sensors off
+  bg_sensors_off();
+
+  // get GPS data
+  gps_t *ptr = gps_getData();
+
+  // create string
+  memset(buf, 0, LINE_SZ);
+  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%.1f,%.1f,%u,%.2f,%d,%d,%d",  \
+              hdr_status, \
+              dev_id, \
+              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+              ptr->lat, ptr->lat_hem, \
+              ptr->lon, ptr->lon_hem, \
+              version, \
+              temp, hum, batt, hv, \
+              bg_sd_inserted, bg_sd_initialized, bg_sd_last_write);
+  len = strlen(buf);
+  buf[len] = '\0';
+
+  // generate checksum
+  chk = gps_checksum(buf+1, len);
+
+  // add checksum to end of line before sending
+  if (chk < 16)
+    sprintf(buf + len, "*0%X", (int)chk);
+  else
+    sprintf(buf + len, "*%X", (int)chk);
+
+  return len;
+}
+
+/* compute total of rolling count */
 unsigned long cpm_gen()
 {
    unsigned int i;
@@ -429,24 +351,39 @@ unsigned long cpm_gen()
    return c_p_m;
 }
 
+/* read device id from EEPROM */
 void pullDevId()
 {
-  int trials = 10;
-  int j=0;
-  char tmp[25];
+  // counter for trials of reading EEPROM
+  int n = 0;
+  int N = 3;
+
+  cli(); // disable all interrupts
 
   for (int i=0 ; i < BMRDD_ID_LEN ; i++)
   {
+    // try to read one time
     dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
-    j = 1;
-    while ((dev_id[i] < '0' || dev_id[i] > '9') && j < trials)
-      dev_id[i] = EEPROM.read(i+BMRDD_EEPROM_ID);
-    if (dev_id[i] < '0' || dev_id[i] > '9')
+    n = 1;
+    // while it's not numberic, and up to N times, try to reread.
+    while ((dev_id[i] < '0' || dev_id[i] > '9') && n < N)
     {
-      strcpy_P(tmp, msg_device_id_invalid);
-      Serial.print(tmp);
+      // wait a little before we retry
+      delay(10);        
+      // reread once and then increment the counter
+      dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
+      n++;
     }
+
+    // catch when the read number is non-numeric, replace with capital X
+    if (dev_id[i] < '0' || dev_id[i] > '9')
+      dev_id[i] = 'X';
   }
+
+  // set the end of string null
   dev_id[BMRDD_ID_LEN] = NULL;
+
+  sei(); // re-enable all interrupts
 }
+
 
