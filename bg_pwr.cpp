@@ -16,7 +16,7 @@ void (*bg_pwr_on_wakeup)() = NULL;
 void (*bg_pwr_on_sleep)() = NULL;
 
 // main switch interrupt servic routine
-void isr_main_switch()
+void bg_pwr_isr()
 {
   if (bg_pwr_state == BG_STATE_PWR_DOWN)
   {
@@ -42,13 +42,13 @@ void bg_pwr_init(int pin_switch, int interrupt, void (*on_wakeup)(), void (*on_s
   bg_pwr_interrupt = interrupt;
 
   // set up power up routines
-  if (pur != NULL)
+  if (on_wakeup != NULL)
     bg_pwr_on_wakeup = on_wakeup;
   else
     bg_pwr_on_wakeup = NULL;
 
   // set up power down routine
-  if (pur != NULL)
+  if (on_sleep != NULL)
     bg_pwr_on_sleep = on_sleep;
   else
     bg_pwr_on_sleep = NULL;
@@ -57,9 +57,10 @@ void bg_pwr_init(int pin_switch, int interrupt, void (*on_wakeup)(), void (*on_s
 void bg_pwr_setup_switch_pin()
 {
   // setup main switch interrupt
-  pinMode(main_switch, INPUT); //This is the main button
+  pinMode(main_switch, INPUT);
   // setup interrupt routine
-  atachInterrupt(BG_MAIN_SWITCH_INTERRUPT, bg_isr_main_switch, RISING); 
+  //attachInterrupt(BG_MAIN_SWITCH_INTERRUPT, bg_pwr_isr, RISING); 
+  attachInterrupt(bg_pwr_interrupt, bg_pwr_isr, RISING); 
 }
 
 // Power Up
@@ -82,7 +83,7 @@ void bg_pwr_up()
   power_timer3_enable();
 
   // update state variable
-  state = BG_STATE_PWR_UP;
+  bg_pwr_state = BG_STATE_PWR_UP;
 
   // execute wake up routine
   if (bg_pwr_on_wakeup != NULL)
@@ -115,7 +116,7 @@ void bg_pwr_down()
   power_timer3_disable();
 
   // update state variable
-  state = BG_STATE_PWR_DOWN;
+  bg_pwr_state = BG_STATE_PWR_DOWN;
 
   //Power down various bits of hardware to lower power usage  
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);

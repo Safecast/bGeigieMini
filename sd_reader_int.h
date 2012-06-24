@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include <avr/interrupt.h> 
-#include <bg_pins.h>
+#include <bg3_pins.h>
 
 // IRQ is on pin change interrupt 2
 #define BGEIGIE_32U4_IRQ PCINT2_vect
@@ -23,20 +23,12 @@
 // Main state variable
 #define SD_READER_IDLE 0
 #define SD_READER_ACTIVE 1
-static uint8_t sd_reader_state = IDLE;
+static uint8_t sd_reader_state = SD_READER_IDLE;
 
 // buffer SIZE
 #define SD_READER_BUF_SIZE 512
 
 #define spi_delay() delayMicroseconds(20)
-
-// IRQ is pin 23 (PORTC7)
-static const int cs_32u4 = 0;
-static const int irq_32u4 = 23;
-static const int cs_sd = 12;
-static const int sd_pwr = 14;
-static const int sd_detect = 20;
-static const int led = 13;
 
 #define DEBUG 1
 
