@@ -27,6 +27,6 @@ The sketches given in examples are the actuall firmware of the different Safecas
 
 ### Usage
 
-1) Download and copy to the Arduino library folder SafecastBGeigie, chibiArduino, and CmdArduino
-2) If not present, create a `hardware` folder, at the same level as the `library` folder and copy the Mighty1284p and ProMicro core files
-3) Open arduino and look for the examples
+1. Download and copy to the Arduino `library` folder SafecastBGeigie, chibiArduino, and CmdArduino
+2. If not present, create a `hardware` folder, at the same level as the `library` folder and copy the Mighty1284p and ProMicro core files
+3. Open arduino and look for the examples
