@@ -11,6 +11,9 @@
 #include <string.h>
 #include <avr/io.h>
 #include "sd_raw.h"
+#include "Timer.h"
+
+#include <LUFA/Drivers/Peripheral/SerialStream.h>
 
 /**
  * \addtogroup sd_raw MMC/SD/SDHC card raw access
@@ -104,6 +107,12 @@
 /* Custom command to request SD card info from master */
 #define CMD_REQ_INFO 0x3e
 
+/* Custom set of reply */
+#define R1_WAIT_RETRY 0xfa
+#define R1_SUCCESS 0x00
+#define R1_FAILURE 0xff
+
+
 /* command responses */
 /* R1: size 1 byte */
 #define R1_IDLE_STATE 0
@@ -185,14 +194,18 @@ uint8_t sd_raw_init()
 
   sd_raw_spi_init();
 
-  //configure_pin_irq();
-  //irq_low();
+  printf("Send SD on command.\r\n");
 
   /* test SPI IRQ based communication */
   b = sd_raw_send_command(CMD_SD_ON, 0x12345678);
 
   if (b == 0xff)
+  {
+    printf("SD on failed.\r\n");
     return 0;
+  }
+
+  printf("SD on success.\r\n");
 
   /* initialization procedure */
   sd_raw_card_type = 0;
@@ -309,39 +322,44 @@ uint8_t sd_raw_rec_byte()
 uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
 {
   uint8_t response;
+  uint8_t n_try = 0;
 
-  /* wait some clock cycles */
-  // sd_raw_rec_byte();
+  do
+  {
+    n_try++;
 
-  /* interrupt request */
-  irq_high();
+    // wait before retrying
+    if (n_try > 1)
+    {
+      delay(50);
+      printf("Retry ");
+    }
+    printf("%hd %ld\r\n", command, arg);
 
-  /* send command via SPI */
-  sd_raw_send_byte(0x40 | command);
-  sd_raw_send_byte((arg >> 24) & 0xff);
-  sd_raw_send_byte((arg >> 16) & 0xff);
-  sd_raw_send_byte((arg >> 8) & 0xff);
-  sd_raw_send_byte((arg >> 0) & 0xff);
-  /*
-     switch(command)
-     {
-     case CMD_GO_IDLE_STATE:
-     sd_raw_send_byte(0x95);
-     break;
-     case CMD_SEND_IF_COND:
-     sd_raw_send_byte(0x87);
-     break;
-     default:
-     sd_raw_send_byte(0xff);
-     break;
-     }
-   */
+    /* interrupt request */
+    irq_high();
 
-  /* receive response */
-  response = sd_raw_rec_byte();
+    /* send command via SPI */
+    sd_raw_send_byte(0x40 | command);
+    sd_raw_send_byte((arg >> 24) & 0xff);
+    sd_raw_send_byte((arg >> 16) & 0xff);
+    sd_raw_send_byte((arg >> 8) & 0xff);
+    sd_raw_send_byte((arg >> 0) & 0xff);
 
-  /* finish interrupt request */
-  irq_low();
+    /* receive response */
+    response = sd_raw_rec_byte();
+
+    /* finish interrupt request */
+    irq_low();
+
+    // after 255 trials, fail
+    if (n_try == 0xff)
+    {
+      response = R1_FAILURE;
+      break;
+    }
+  }
+  while (response == R1_WAIT_RETRY);
 
   return response;
 }

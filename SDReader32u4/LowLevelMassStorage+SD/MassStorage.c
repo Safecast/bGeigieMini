@@ -35,14 +35,18 @@
  */
 
 #define  INCLUDE_FROM_MASSSTORAGE_C
+#include <avr/power.h>
+#include <avr/sleep.h>
 #include "MassStorage.h"
 #include "Lib/sd_raw_config.h"
 #include "Lib/Timer.h"
 
+#include <LUFA/Drivers/Peripheral/SerialStream.h>
+
 /* define LED macro */
-#define LED_init() DDRC |= (1 << DDC7)
-#define LED_on() PORTC |= (1 << PORTC7)
-#define LED_off() PORTC &= ~(1 << PORTC7)
+#define LED_init() DDRF |= (1 << DDF0)
+#define LED_on() PORTF |= (1 << PORTF0)
+#define LED_off() PORTF &= ~(1 << PORTF0)
 
 /** Structure to hold the latest Command Block Wrapper issued by the host, containing a SCSI command to execute. */
 CommandBlockWrapper_t  CommandBlock;
@@ -57,8 +61,6 @@ volatile bool          IsMassStoreReset = false;
 #define IDLE 0
 #define CONNECTED 1
 static int state = IDLE;
-
-void delay_loop(uint32_t d);
 
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  enters a loop to run the application tasks in sequence.
@@ -75,7 +77,6 @@ int main(void)
   // init timer
   timer_init();
 
-
   // setup hardware
 	SetupHardware();
 
@@ -84,10 +85,14 @@ int main(void)
 
 	for (;;)
 	{
-    //if (CONNECTED)
+    if (state == CONNECTED)
     {
       MassStorage_Task();
       USB_USBTask();
+    }
+    else
+    {
+      GoToSleep();
     }
 	}
 }
@@ -105,6 +110,9 @@ void SetupHardware(void)
 	/* Hardware Initialization */
   LED_init();
 
+  // Setup serial stream
+	SerialStream_Init(9600, false);
+
   /* configure IRQ pin and set low */
   configure_pin_irq();
   irq_low();
@@ -119,23 +127,82 @@ void SetupHardware(void)
   delay(1000);
   LED_off();
 
-  // Init SD card manager
-	SDCardManager_Init();
-
   // Init USB
 	USB_Init();
+}
+
+/** Re-enable bits of hw that were disabled to save power */
+void WakeUp(void)
+{
+  sleep_disable();
+
+  //Enable ADC, TWI, SPI, Timer0, Timer1, Timer2
+  ADCSRA |= (1<<ADEN); // Enable ADC
+  ACSR &= ~(1<<ACD);   // Enable the analog comparator
+
+  // this should be set to reflect real usage of analog pins
+  DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC7 pins
+  DIDR1 = 0x00; // Enable digital input buffer on AIN1/0
+  DIDR2 = 0x00; // Enable digital input buffer on ADC8-ADC13
+
+  power_twi_enable();
+  power_spi_enable();
+  power_usart0_enable();
+  power_timer0_enable();
+  power_timer1_enable();
+  power_timer3_enable();
+
+  // Setup serial stream
+  //delay(10);
+	//SerialStream_Init(9600, false);
+  //delay(10);
+
+  printf("Wake Up!\r\n");
+
+}
+
+/** Configure AVR for sleep */
+void GoToSleep(void)
+{
+  printf("Sleep\r\n");
+  delay(10);
+
+  ADCSRA &= ~(1<<ADEN); //Disable ADC                                                    
+  ACSR |= (1<<ACD); //Disable the analog comparator                                      
+  //Disable digital input buffers on all ADC0-ADC5 pins                    
+  DIDR0 = 0xFF; 
+  DIDR1 = 0xFF;
+  DIDR2 = 0xFF;
+
+  power_twi_disable();
+  power_spi_disable();
+  power_usart0_disable();                                                                
+  power_timer0_disable();
+  power_timer1_disable();
+  power_timer3_disable();
+
+  //Power down various bits of hardware to lower power usage                             
+  //SMCR |= ~(1 << SM2) | (1 << SM1) | ~(1 << SM0); // power-down sleep mode
+  //SMCR |= (1 << SE); // SLEEP!
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_mode();
 }
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs. */
 void EVENT_USB_Device_Connect(void)
 {
-	//printf("Connect\r\n");
+  // if was idle, wake up!
+  if (state == IDLE)
+    WakeUp();
 	
+  // switch to CONNECTED state
+  state = CONNECTED;
+
 	/* Indicate USB enumerating */
 	LED_on();
 
-  // switch to CONNECTED state
-  state = CONNECTED;
+  // Init SD card manager
+	SDCardManager_Init();
 
 	/* Reset the MSReset flag upon connection */
 	IsMassStoreReset = false;
@@ -387,9 +454,3 @@ uint8_t StreamCallback_AbortOnMassStoreReset(void)
 	return STREAMCALLBACK_Continue;
 }
 
-void delay_loop(uint32_t d)
-{
-  uint32_t i = 0x0;
-  for (i = 0x0 ; i < d ; i++);
-  return;
-}

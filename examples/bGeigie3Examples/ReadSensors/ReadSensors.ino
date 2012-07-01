@@ -16,6 +16,7 @@ void setup()
 
   // turn off bits of hardware not used
   pinMode(SS, OUTPUT);
+  digitalWrite(SS, HIGH);
   pinMode(hvps_pwr, INPUT);
   pinMode(gps_on_off, INPUT);
   pinMode(radio_sleep, INPUT);

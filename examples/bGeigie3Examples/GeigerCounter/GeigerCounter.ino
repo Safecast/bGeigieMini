@@ -11,12 +11,14 @@
 */
 
 #include <HardwareCounter.h>
+#include <bg3_pins.h>
+#include <SD.h>
+#include <SPI.h>
 
 #define DELAY 5000
 #define NBINS 12
-#define TIMER1 5    // the timer1 pin on the 328p
 
-static HardwareCounter counter(TIMER1, DELAY);  // The hardware counter object
+static HardwareCounter counter(counts, DELAY);  // The hardware counter object
 static unsigned long bins[NBINS] = {0};         // the sliding window
 static int index = 0;                           // the current bin index
 
@@ -28,6 +30,9 @@ void setup()
 
   // output some nice message
   Serial.println("Start counting counts!");
+
+  bg_hvps_pwr_config();
+  bg_hvps_on();
 
   // Start the counter
   counter.start();

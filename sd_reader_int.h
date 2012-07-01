@@ -5,16 +5,6 @@
 #include <avr/interrupt.h> 
 #include <bg3_pins.h>
 
-// IRQ is on pin change interrupt 2
-#define BGEIGIE_32U4_IRQ PCINT2_vect
-// enable rising edge
-#define CFG_SD_READER_INTP() do \
-  {                         \
-    PCMSK2 |= _BV(PCINT23);  \
-    PCICR |= _BV(PCIE2);    \
-  }                         \
-  while(0)                      
-
 /* 
  * Special instructions to set SPI speed and other
  * in main uC on bGeigie board
@@ -23,6 +13,7 @@
 // Main state variable
 #define SD_READER_IDLE 0
 #define SD_READER_ACTIVE 1
+#define SD_READER_DISABLED 2
 static uint8_t sd_reader_state = SD_READER_IDLE;
 
 // buffer SIZE
@@ -30,8 +21,7 @@ static uint8_t sd_reader_state = SD_READER_IDLE;
 
 #define spi_delay() delayMicroseconds(20)
 
-#define DEBUG 1
-
+#define DEBUG 0
 #if DEBUG
 static const int break_pin = 16;
 #define configure_break_pin() pinMode(break_pin, OUTPUT); \
@@ -57,6 +47,8 @@ void spi_tx_byte(uint8_t b);
 void sd_reader_setup();
 void sd_reader_loop();
 uint8_t sd_reader_init();
+uint8_t sd_reader_lock();
+void sd_reader_unlock();
 uint8_t sd_reader_read_block(uint32_t arg);
 uint8_t sd_reader_write_block(uint32_t arg);
 void sd_reader_get_info();
