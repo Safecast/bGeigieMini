@@ -49,8 +49,11 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-#define JAPAN_POST 0
 #define ENABLE_DIAGNOSTIC 0
+#define JAPAN_POST 0
+
+// make sure to include that after JAPAN_POST is defined
+#include "version.h"
 
 // defines for status bits
 #define SET_STAT(var, pos) var |= pos
@@ -104,11 +107,7 @@ char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
-#if JAPAN_POST
-char fileHeader[] = "# NEW LOG\n# format=1.3.6jp\n";
-#else
-char fileHeader[] = "# NEW LOG\n# format=1.3.6\n";
-#endif
+char fileHeader[] = "# NEW LOG\n# firmware=";
 
 
 // Status vector
@@ -146,9 +145,12 @@ void setup()
   Serial.println("WARNING: LOOP INTERVAL CLOSE TO WATCHDOG TIMOUT");
 #endif
   
+  // initialize and program the GPS module
+  gps_program_settings();
 
   // print header to serial
   Serial.print(fileHeader);
+  Serial.println(version);
 
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
@@ -338,6 +340,7 @@ void loop()
           Serial.println(filename);
           dataFile.print("\n");
           dataFile.print(fileHeader);
+          dataFile.println(version);
           dataFile.close();
         }
         else
@@ -353,6 +356,7 @@ void loop()
         {
           dataFile.print("\n");
           dataFile.print(fileHeader);
+          dataFile.println(version);
           dataFile.close();
         }
         else
@@ -640,3 +644,46 @@ float read_voltage(int pin)
 }
 #endif
 
+void gps_program_settings()
+{
+  // all GPS command taken from datasheet
+  // "Binary Messages Of SkyTraq Venus 6 GPS Receiver"
+
+  // set GGA and RMC output at 1Hz
+  uint8_t GPS_MSG_OUTPUT_GGARMC_1S[9] = { 0x08, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x01 }; // with update to RAM and FLASH
+  uint16_t GPS_MSG_OUTPUT_GGARMC_1S_L = 9;
+
+  // Power Save mode (not sure what it is doing at the moment
+  uint8_t GPS_MSG_PWR_SAVE[3] = { 0x0C, 0x01, 0x01 }; // update to FLASH too
+  uint16_t GPS_MSG_PWR_SAVE_L = 3;
+
+  // wait for GPS to start
+  while(!Serial.available())
+    delay(10);
+
+  // send all commands
+  gps_send_message(GPS_MSG_OUTPUT_GGARMC_1S, GPS_MSG_OUTPUT_GGARMC_1S_L);
+  gps_send_message(GPS_MSG_PWR_SAVE, GPS_MSG_PWR_SAVE_L);
+}
+
+void gps_send_message(const uint8_t *msg, uint16_t len)
+{
+  uint8_t chk = 0x0;
+  // header
+  Serial.print(0xA0, BYTE);
+  Serial.print(0xA1, BYTE);
+  // send length
+  Serial.print(len >> 8, BYTE);
+  Serial.print(len & 0xff, BYTE);
+  // send message
+  for (int i = 0 ; i < len ; i++)
+  {
+    Serial.print(msg[i], BYTE);
+    chk ^= msg[i];
+  }
+  // checksum
+  Serial.print(chk, BYTE);
+  // end of message
+  Serial.print(0x0D, BYTE);
+  Serial.println(0x0A, BYTE);
+}
