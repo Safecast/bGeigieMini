@@ -152,11 +152,6 @@ void WakeUp(void)
   power_timer1_enable();
   power_timer3_enable();
 
-  // Setup serial stream
-  //delay(10);
-	//SerialStream_Init(9600, false);
-  //delay(10);
-
   printf("Wake Up!\r\n");
 
 }

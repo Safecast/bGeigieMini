@@ -334,7 +334,7 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
       delay(50);
       printf("Retry ");
     }
-    printf("%hd %ld\r\n", command, arg);
+    //printf("%hd %ld\r\n", command, arg);
 
     /* interrupt request */
     irq_high();
