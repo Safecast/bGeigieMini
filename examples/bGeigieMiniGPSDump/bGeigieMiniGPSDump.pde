@@ -67,6 +67,8 @@ void loop() {
 void gps_send_message(const uint8_t *msg, uint16_t len)
 {
   uint8_t chk = 0x0;
+
+#if ARDUINO < 100
   // header
   Serial.print(0xA0, BYTE);
   Serial.print(0xA1, BYTE);
@@ -84,4 +86,25 @@ void gps_send_message(const uint8_t *msg, uint16_t len)
   // end of message
   Serial.print(0x0D, BYTE);
   Serial.println(0x0A, BYTE);
+#else
+  // header
+  Serial.write(0xA0);
+  Serial.write(0xA1);
+  // send length
+  Serial.write(len >> 8);
+  Serial.write(len & 0xff);
+  // send message
+  for (int i = 0 ; i < len ; i++)
+  {
+    Serial.write(msg[i]);
+    chk ^= msg[i];
+  }
+  // checksum
+  Serial.write(chk);
+  // end of message
+  Serial.write(0x0D);
+  Serial.write(0x0A);
+  Serial.write((byte)'\r');
+  Serial.write((byte)'\n');
+#endif
 }
