@@ -16,89 +16,66 @@ void (*bg_pwr_on_wakeup)() = NULL;
 void (*bg_pwr_on_sleep)() = NULL;
 
 // main switch interrupt servic routine
-void bg_pwr_isr()
+// NOTE to self: timers do not work in ISR
+ISR(BG_SWITCH_INT)
 {
-  if (bg_pwr_state == BG_STATE_PWR_DOWN)
-  {
-    power_timer0_enable();  // for Arduino delay, millis, etc
-    unsigned int start = millis();
-    while ( (millis() - start < 2000) && (digitalRead(bg_pwr_switch_pin) == 1) );
-    if (millis() - start >= 2000)
-      bg_pwr_up();
-    else
-      bg_pwr_down();
-  }
-  else
-  {
-    bg_pwr_down();
-  }
+  // raise a flag when the button is pressed when device is powered up
+  if (digitalRead(bg_pwr_switch_pin) == HIGH && bg_pwr_state == BG_STATE_PWR_UP)
+    bg_pwr_button_pressed_flag = 1;
 }
 
 // Configure main switch
-void bg_pwr_init(int pin_switch, int interrupt, void (*on_wakeup)(), void (*on_sleep)())
+void bg_pwr_init(int pin_switch, void (*on_wakeup)(), void (*on_sleep)())
 {
   // set pins
   bg_pwr_switch_pin = pin_switch;
-  bg_pwr_interrupt = interrupt;
 
   // set up power up routines
-  if (on_wakeup != NULL)
-    bg_pwr_on_wakeup = on_wakeup;
-  else
-    bg_pwr_on_wakeup = NULL;
+  bg_pwr_on_wakeup = on_wakeup;
 
   // set up power down routine
-  if (on_sleep != NULL)
-    bg_pwr_on_sleep = on_sleep;
-  else
-    bg_pwr_on_sleep = NULL;
+  bg_pwr_on_sleep = on_sleep;
+
+  // setup interrupt
+  bg_pwr_setup_switch_pin();
+
+  // default state is to sleep
+  bg_pwr_state = BG_STATE_PWR_DOWN;
 }
 
 void bg_pwr_setup_switch_pin()
 {
   // setup main switch interrupt
-  pinMode(main_switch, INPUT);
+  pinMode(bg_pwr_switch_pin, INPUT);
   // setup interrupt routine
-  //attachInterrupt(BG_MAIN_SWITCH_INTERRUPT, bg_pwr_isr, RISING); 
-  attachInterrupt(bg_pwr_interrupt, bg_pwr_isr, RISING); 
+  BG_SWITCH_INTP();
 }
 
-// Power Up
-void bg_pwr_up()
+
+// routine to execute in the loop
+void bg_pwr_loop()
 {
-  //Shut off ADC, TWI, SPI, Timer0, Timer1, Timer2
-  ADCSRA |= (1<<ADEN); // Enable ADC
-  ACSR &= ~(1<<ACD);   // Enable the analog comparator
+  // if the button has been pressed check!
+  if (bg_pwr_button_pressed_flag)
+    bg_pwr_button_handler();
 
-  // this should be set to reflect real usage of analog pins
-  DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC5 pins
-  DIDR1 &= ~(1<<AIN1D)|(1<<AIN0D); // Enable digital input buffer on AIN1/0
-
-  power_twi_enable();
-  power_spi_enable();
-  power_usart0_enable();
-  power_timer0_enable();
-  power_timer1_enable();
-  power_timer2_enable();
-  power_timer3_enable();
-
-  // update state variable
-  bg_pwr_state = BG_STATE_PWR_UP;
-
-  // execute wake up routine
-  if (bg_pwr_on_wakeup != NULL)
-    bg_pwr_on_wakeup();
+  // as long as the state is down, we turn off
+  while (bg_pwr_state == BG_STATE_PWR_DOWN)
+    bg_pwr_down();
 }
+
 
 // Shutdown
 void bg_pwr_down()
 {
   // execute sleep routine
-  if (bg_pwr_on_sleep != NULL)
+  if (bg_pwr_exec_sleep_routine_flag && bg_pwr_on_sleep != NULL)
+  {
     bg_pwr_on_sleep();
-
-  // setup main switch interrupt
-  bg_pwr_setup_switch_pin();
+    // the flag is needed because we want to execute sleep
+    // routine only when we go from pwr up to pwr down
+    bg_pwr_exec_sleep_routine_flag = 0;
+  }
 
   //Shut off ADC, TWI, SPI, Timer0, Timer1, Timer2
 
@@ -115,12 +92,57 @@ void bg_pwr_down()
   power_timer2_disable();
   power_timer3_disable();
 
-  // update state variable
-  bg_pwr_state = BG_STATE_PWR_DOWN;
-
   //Power down various bits of hardware to lower power usage  
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  sleep_enable();
+  sleep_mode();
+
+  /*********/
+  /* SLEEP */
+  /*********/
+
+  // The processor wakes up back here after interrupt
+
+  //Turn on ADC, TWI, SPI, Timer0, Timer1, Timer2
+  ADCSRA |= (1<<ADEN); // Enable ADC
+  ACSR &= ~(1<<ACD);   // Enable the analog comparator
+
+  // this should be set to reflect real usage of analog pins
+  DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC5 pins
+  DIDR1 &= ~(1<<AIN1D)|(1<<AIN0D); // Enable digital input buffer on AIN1/0
+
+  power_twi_enable();
+  power_spi_enable();
+  power_usart0_enable();
+  power_timer0_enable();
+  power_timer1_enable();
+  power_timer2_enable();
+  power_timer3_enable();
+
+  // check button press time and handle state
+  bg_pwr_button_handler();
+
+  // execute wake up routine only if we really woke up
+  if (bg_pwr_state == BG_STATE_PWR_UP && bg_pwr_on_wakeup != NULL)
+  {
+    bg_pwr_on_wakeup();
+    bg_pwr_exec_sleep_routine_flag = 1; // next time we sleep execute sleep routine
+  }
+}
+
+void bg_pwr_button_handler()
+{
+  // verify how long the button is pressed
+  unsigned int start = millis();
+  while ( (millis() - start < BG_PWR_BUTTON_TIME) && (digitalRead(bg_pwr_switch_pin) == HIGH) );
+  // if the button is pressed continuously for 2 seconds, swap state
+  if (millis() - start >= BG_PWR_BUTTON_TIME)
+    if (bg_pwr_state == BG_STATE_PWR_UP)
+      bg_pwr_state = BG_STATE_PWR_DOWN;
+    else if (bg_pwr_state == BG_STATE_PWR_DOWN)
+      bg_pwr_state = BG_STATE_PWR_UP;
+
+  // lower the button flag
+  bg_pwr_button_pressed_flag = 0;
 }
 
 

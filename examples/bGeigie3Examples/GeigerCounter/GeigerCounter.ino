@@ -26,10 +26,11 @@ void setup()
 {
 
   // start serial
-  Serial.begin(9600);
+  Serial.begin(57600);
 
   // output some nice message
   Serial.println("Start counting counts!");
+  delay(100);
 
   bg_hvps_pwr_config();
   bg_hvps_on();
