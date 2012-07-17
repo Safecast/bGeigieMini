@@ -17,7 +17,7 @@ void setup() {
   Serial1.begin(9600);  // from GPS
 
   pinMode(gps_on_off, OUTPUT);
-  digitalWrite(gps_pwr, LOW);
+  digitalWrite(gps_on_off, LOW);
 
   Serial.println("Wait for GPS to start.");
   int t = 0;

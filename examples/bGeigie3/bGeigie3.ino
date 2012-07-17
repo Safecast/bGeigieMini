@@ -30,15 +30,25 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <SD.h>
-#include <chibi.h>
+// C libraries
 #include <limits.h>
+
+// Arduino libraries
+#include <SD.h>
+#include <SPI.h>
 #include <EEPROM.h>
+
+// 3rd party Arduino libraries
+#include <chibi.h>
+
+// Safecast bGeigie library
+#include <bg3_pins.h>
 #include <GPS.h>
 #include <HardwareCounter.h>
+#include <sd_logger.h>
+#include <bg_sensors.h>
 
-#include <bgeigie.h>
-
+// version header
 #include "version.h"
 
 #define TIME_INTERVAL 5000
@@ -53,6 +63,9 @@
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20            // transmission channel
 
+// Messages and Errors in Flash
+static char msg_device_id[] PROGMEM = "Device id: ";
+
 // Geiger rolling and total count
 unsigned long shift_reg[NX] = {0};
 unsigned long reg_index = 0;
@@ -61,14 +74,14 @@ int str_count = 0;
 char geiger_status = VOID;
 
 // Hardware counter
-HardwareCounter hwc(counts, TIME_INTERVAL);
+static HardwareCounter hwc(counts, TIME_INTERVAL);
 
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
 
 char filename[13];              // placeholder for filename
-char hdr[6] = "BGNRDD";         // BGeigie New RaDiation Detector header
-char hdr_status[6] = "BGNSTS";  // Status message header
+char hdr[] = "BGNRDD";         // BGeigie New RaDiation Detector header
+char hdr_status[] = "BGNSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];    // device id
 char ext_log[] = ".log";
 char ext_sts[] = ".sts";
@@ -83,21 +96,37 @@ void setup()
   char tmp[25];
   
   // init serial
-  Serial.begin(9600);
+  Serial.begin(57600);
   Serial.println("Welcome to bGeigie");
 
-  // intialize the pins
-  bg_pins_setup();
-
   // initialize GPS using second Serial connection
-  bg_gps_on();
+  Serial1.begin(9600);
   gps_init(&Serial1, line);
+  //gps_pwr_init(gps_on_off);
+  //gps_on();
+  pinMode(gps_on_off, OUTPUT);
+  digitalWrite(gps_on_off, LOW);
+
+  Serial.println("Wait for GPS to start.");
+  int t = 0;
+  while(!Serial1.available())
+  {
+    delay(10);
+    t++;
+  }
+  Serial.print("GPS started in less than ");
+  Serial.print(t*10);
+  Serial.println("ms.");
+
+  // Issue some commands to the GPS
+  Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
+  Serial1.println(MTK_UPDATE_RATE_1HZ);
 
   // initialize SD card
-  bg_sd_card_init();
+  sd_log_init(sd_pwr, sd_detect, cs_sd);
 
   // initialize sensors
-  bg_sensors_config();
+  bgs_sensors_init(sense_pwr, batt_sense, temp_sense, hum_sense, hv_sense);
   
   // set device id
   pullDevId();
@@ -106,24 +135,22 @@ void setup()
   Serial.print(tmp);
   Serial.println(dev_id);
 
-  // print free RAM. we should try to maintain about 300 bytes for stack space
-  Serial.println(FreeRam());
-
 #if TX_ENABLED
   // init chibi on channel normally 20
   chibiInit();
   chibiSetChannel(CHANNEL);
 #endif
 
-  strcpy_P(tmp, msg_sd_init);
-  Serial.print(tmp);
-  
   // set initial state of Geiger to void
   geiger_status = VOID;
   str_count = 0;
   
   // print free RAM. we should try to maintain about 300 bytes for stack space
   Serial.println(FreeRam());
+
+  // ***WARNING*** turn High Voltage board ON ***WARNING***
+  bg_hvps_pwr_config();
+  bg_hvps_on();
 
   // And now Start the Pulse Counter!
   hwc.start();
@@ -190,11 +217,11 @@ void loop()
 
         // write to log file on SD card
         strcpy(filename+8, ext_log);
-        bg_sd_writeln(filename, line);
+        sd_log_writeln(filename, line);
 
         // write to status file as well
         strcpy(filename+8, ext_sts);
-        bg_sd_writeln(filename, line);
+        sd_log_writeln(filename, line);
       }
       
       // generate timestamp. only update the start time if 
@@ -205,13 +232,13 @@ void loop()
       if (gps_init_acq == 0)
       {
         Serial.print("No GPS: ");
-        bg_sd_last_write = 0;   // because we don't write to SD before GPS lock
+        sd_log_last_write = 0;   // because we don't write to SD before GPS lock
       }
       else
       {
         // dump data to SD card
         strcpy(filename+8, ext_log);
-        bg_sd_writeln(filename, line);
+        sd_log_writeln(filename, line);
       }
 
       // output through Serial too
@@ -235,7 +262,7 @@ void loop()
       if (gps_init_acq != 0)
       {
         strcpy(filename+8, ext_sts);
-        bg_sd_writeln(filename, line);
+        sd_log_writeln(filename, line);
       }
 
 #if TX_ENABLED
@@ -293,17 +320,26 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
 /* create Status log line */
 byte bg_status_str_gen(char *buf)
 {
+  byte len;
   byte chk;
+
+  int batt, hv;
+  float t, h;
+  int tf, hf;
 
   // turn sensors on
   bg_sensors_on();
-  delay(20);
+  delay(100);
 
   // read all sensors
-  float temp bg_read_temperature(); // C
-  float hum = bg_read_humidity();   // %
-  float hv = bg_read_hvps();        // V
-  unsigned int batt = (unsigned int)(1000*bg_read_battery()); // mV
+  hv = bgs_read_hv();        // V
+  batt = 1000*bgs_read_battery(); // mV
+
+  // need to compute fractional part separately because sprintf doesn't support it
+  t = bgs_read_temperature();
+  tf = (int)((t-(int)t)*100);
+  h = bgs_read_humidity();
+  hf = (int)((h-(int)h)*100);
 
   // turn sensors off
   bg_sensors_off();
@@ -313,7 +349,7 @@ byte bg_status_str_gen(char *buf)
 
   // create string
   memset(buf, 0, LINE_SZ);
-  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%.1f,%.1f,%u,%.2f,%d,%d,%d",  \
+  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d.%d,%d.%d,%d,%d,%d,%d,%d",  \
               hdr_status, \
               dev_id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
@@ -321,8 +357,8 @@ byte bg_status_str_gen(char *buf)
               ptr->lat, ptr->lat_hem, \
               ptr->lon, ptr->lon_hem, \
               version, \
-              temp, hum, batt, hv, \
-              bg_sd_inserted, bg_sd_initialized, bg_sd_last_write);
+              (int)t, tf, (int)h, hf, batt, hv, \
+              sd_log_inserted, sd_log_initialized, sd_log_last_write);
   len = strlen(buf);
   buf[len] = '\0';
 
@@ -385,5 +421,4 @@ void pullDevId()
 
   sei(); // re-enable all interrupts
 }
-
 
