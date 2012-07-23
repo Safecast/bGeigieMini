@@ -56,14 +56,6 @@ void gps_init(HardwareSerial *serial, char *line)
   memset((void *)&_gps_data, 0, sizeof(gps_t));
 }
 
-// init GPS power pin (if availabe)
-void gps_pwr_init(int pin_pwr)
-{
-  gps_pwr = pin_pwr;
-  pinMode(gps_pwr, OUTPUT);
-  gps_off();
-}
-
 // Availability indicator
 int gps_available()
 {

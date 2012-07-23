@@ -19,7 +19,7 @@ static int bg_pwr_state;
 static int bg_pwr_exec_sleep_routine_flag = 0;
 
 // the press time needed to turn on or off the bGeigie (ms)
-#define BG_PWR_BUTTON_TIME 2000
+#define BG_PWR_BUTTON_TIME 1000
 
 // main pin setup routine
 void bg_pwr_init(int pin_switch, void (*on_wakeup)(), void (*on_sleep)());
@@ -27,7 +27,7 @@ void bg_pwr_setup_switch_pin();
 
 // for button handling
 static int bg_pwr_button_pressed_flag = 0;
-void bg_pwr_button_handler();
+static unsigned long bg_pwr_button_pressed_time = 0;
 
 // routine to execute in the loop
 void bg_pwr_loop();

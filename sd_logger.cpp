@@ -108,6 +108,17 @@ int sd_log_writeln(char *filename, char *log_line)
     return 0;
   }
 
+  // test for card presence
+  if (sd_log_card_missing())
+  {
+    char tmp[BG_ERR_MSG_SIZE];
+    strcpy_P(tmp, msg_sd_not_present);
+    Serial.print(tmp);
+    sd_log_last_write = 0;
+    sd_log_inserted = 0;
+    return 0;
+  }
+
   // start critical bit
   uint8_t sreg_old = SREG;  // save sreg
   cli();                    // disable global interrupts

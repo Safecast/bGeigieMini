@@ -1,6 +1,8 @@
 
 #include "bg_pwr.h"
 
+#include <limits.h>
+
 #include <avr/sleep.h>
 #include <avr/power.h>
 #include <avr/interrupt.h>
@@ -10,6 +12,8 @@
 static int bg_pwr_switch_pin;
 // interrupt number
 static int bg_pwr_interrupt;
+
+unsigned long ellapsed_millis(unsigned long start);
 
 // function pointers for power up and down custom routines
 void (*bg_pwr_on_wakeup)() = NULL;
@@ -21,7 +25,10 @@ ISR(BG_SWITCH_INT)
 {
   // raise a flag when the button is pressed when device is powered up
   if (digitalRead(bg_pwr_switch_pin) == HIGH && bg_pwr_state == BG_STATE_PWR_UP)
+  {
     bg_pwr_button_pressed_flag = 1;
+    bg_pwr_button_pressed_time = millis();
+  }
 }
 
 // Configure main switch
@@ -41,6 +48,12 @@ void bg_pwr_init(int pin_switch, void (*on_wakeup)(), void (*on_sleep)())
 
   // default state is to sleep
   bg_pwr_state = BG_STATE_PWR_DOWN;
+
+  // execute on sleep routing pre-emptively
+  bg_pwr_exec_sleep_routine_flag = 1;
+
+  // small delay to let serial and stuff finish
+  delay(10);
 }
 
 void bg_pwr_setup_switch_pin()
@@ -56,8 +69,22 @@ void bg_pwr_setup_switch_pin()
 void bg_pwr_loop()
 {
   // if the button has been pressed check!
-  if (bg_pwr_button_pressed_flag)
-    bg_pwr_button_handler();
+  if (bg_pwr_button_pressed_flag && bg_pwr_state == BG_STATE_PWR_UP)
+  {
+    if (digitalRead(bg_pwr_switch_pin) == HIGH)
+    {
+      if (millis() - bg_pwr_button_pressed_time > BG_PWR_BUTTON_TIME)
+      {
+        bg_pwr_state = BG_STATE_PWR_DOWN;
+        bg_pwr_button_pressed_flag = 0;
+      }
+    }
+    else
+    {
+      bg_pwr_button_pressed_flag = 0;
+      bg_pwr_button_pressed_time = 0;
+    }
+  } 
 
   // as long as the state is down, we turn off
   while (bg_pwr_state == BG_STATE_PWR_DOWN)
@@ -119,7 +146,14 @@ void bg_pwr_down()
   power_timer3_enable();
 
   // check button press time and handle state
-  bg_pwr_button_handler();
+  unsigned long start = millis();
+  while ( (ellapsed_millis(start) < BG_PWR_BUTTON_TIME) && (digitalRead(bg_pwr_switch_pin) == HIGH) );
+  // if the button is pressed continuously for 2 seconds, swap to on state
+  if (ellapsed_millis(start) >= BG_PWR_BUTTON_TIME)
+    bg_pwr_state = BG_STATE_PWR_UP;
+
+  // lower the button flag
+  bg_pwr_button_pressed_flag = 0;
 
   // execute wake up routine only if we really woke up
   if (bg_pwr_state == BG_STATE_PWR_UP && bg_pwr_on_wakeup != NULL)
@@ -129,20 +163,15 @@ void bg_pwr_down()
   }
 }
 
-void bg_pwr_button_handler()
+// quick helper that compute securely ellapsed time
+unsigned long ellapsed_millis(unsigned long start)
 {
-  // verify how long the button is pressed
-  unsigned int start = millis();
-  while ( (millis() - start < BG_PWR_BUTTON_TIME) && (digitalRead(bg_pwr_switch_pin) == HIGH) );
-  // if the button is pressed continuously for 2 seconds, swap state
-  if (millis() - start >= BG_PWR_BUTTON_TIME)
-    if (bg_pwr_state == BG_STATE_PWR_UP)
-      bg_pwr_state = BG_STATE_PWR_DOWN;
-    else if (bg_pwr_state == BG_STATE_PWR_DOWN)
-      bg_pwr_state = BG_STATE_PWR_UP;
+  unsigned long now = millis();
 
-  // lower the button flag
-  bg_pwr_button_pressed_flag = 0;
+  if (now >= start)
+    return now - start;
+  else
+    return (ULONG_MAX + now - start);
 }
 
 

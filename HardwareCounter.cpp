@@ -36,13 +36,15 @@ HardwareCounter::HardwareCounter(int timer_pin, long delay)
 {
   // register delay
   _delay = delay;
-  // set pin as digital input
-  pinMode(timer_pin, INPUT);
+  // register timer pin
+  _pin = timer_pin;
 }
 
 // call this to start the counter
 void HardwareCounter::start()
 {
+  // set pin as digital input
+  pinMode(_pin, INPUT);
 
   // hardware counter setup ( refer atmega168.pdf chapter 16-bit counter1)
   TCCRnA=0;     // reset timer/countern control register A

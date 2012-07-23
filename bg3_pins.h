@@ -54,6 +54,9 @@ static const int sd_pwr = 14;
 
 // GPS on/off
 static const int gps_on_off = 3;
+#define bg_gps_pwr_config() pinMode(gps_on_off, OUTPUT)
+#define bg_gps_on() digitalWrite(gps_on_off, LOW)
+#define bg_gps_off() digitalWrite(gps_on_off, HIGH)
 static const int gps_1pps = 25; // A1
 // GPS 1PPS is on pin change interrupt 0
 #define BG_1PPS_IRQ PCINT0_vect

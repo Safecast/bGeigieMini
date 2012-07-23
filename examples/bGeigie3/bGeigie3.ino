@@ -40,6 +40,7 @@
 
 // 3rd party Arduino libraries
 #include <chibi.h>
+#include <Cmd.h>
 
 // Safecast bGeigie library
 #include <bg3_pins.h>
@@ -47,6 +48,7 @@
 #include <HardwareCounter.h>
 #include <sd_logger.h>
 #include <bg_sensors.h>
+#include <bg_pwr.h>
 
 // version header
 #include "version.h"
@@ -59,7 +61,7 @@
 #define BMRDD_ID_LEN 3
 
 // Radio options
-#define TX_ENABLED 0
+#define TX_ENABLED 1
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20            // transmission channel
 
@@ -94,6 +96,10 @@ int log_created = 0;
 void setup()
 {
   char tmp[25];
+
+  // init led
+  bg_led_config();
+  bg_led_off();
   
   // init serial
   Serial.begin(57600);
@@ -102,10 +108,8 @@ void setup()
   // initialize GPS using second Serial connection
   Serial1.begin(9600);
   gps_init(&Serial1, line);
-  //gps_pwr_init(gps_on_off);
-  //gps_on();
-  pinMode(gps_on_off, OUTPUT);
-  digitalWrite(gps_on_off, LOW);
+  bg_gps_pwr_config();
+  bg_gps_on();
 
   Serial.println("Wait for GPS to start.");
   int t = 0;
@@ -155,14 +159,32 @@ void setup()
   // And now Start the Pulse Counter!
   hwc.start();
 
+  // setup command line commands
+  cmdAdd("help", cmdPrintHelp);
+  cmdAdd("setid", cmdSetId);
+  cmdAdd("getid", cmdGetId);
+
+  // setup power management
+  bg_pwr_init(main_switch, power_up, shutdown);
+
   // Starting now!
   Serial.println("Starting now!");
+
+  // delay to give time to serial to finish
+  delay(10);
+
 }
 
 /* MAIN LOOP */
 void loop()
 {
   char tmp[25];
+
+  // power management loop routine
+  bg_pwr_loop();
+
+  // command line loop polling routing
+  cmdPoll();
 
   // update gps
   gps_update();
@@ -241,9 +263,6 @@ void loop()
         sd_log_writeln(filename, line);
       }
 
-      // output through Serial too
-      Serial.println(line);
-
 #if TX_ENABLED
       // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
       chibiSleepRadio(0);
@@ -252,11 +271,20 @@ void loop()
       chibiSleepRadio(1);
 #endif
 
+      // blink if log written
+      if (sd_log_last_write == 1)
+      {
+        if (gps_getData()->status[0] == AVAILABLE)
+          blink_led(1, 100);
+        else
+          blink_led(2, 100);
+      }
+
+      // output through Serial too
+      Serial.println(line);
+
       // Now take care of the Status message
       line_len = bg_status_str_gen(line);
-
-      // show in Serial stream
-      Serial.println(line);
 
       // write to SD status file
       if (gps_init_acq != 0)
@@ -272,6 +300,9 @@ void loop()
       chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
       chibiSleepRadio(1);
 #endif
+    
+      // show in Serial stream
+      Serial.println(line);
 
     } /* gps_available */
   } /* hwc_available */
@@ -339,6 +370,7 @@ byte bg_status_str_gen(char *buf)
   t = bgs_read_temperature();
   tf = (int)((t-(int)t)*100);
   h = bgs_read_humidity();
+  Serial.println(h);
   hf = (int)((h-(int)h)*100);
 
   // turn sensors off
@@ -422,3 +454,138 @@ void pullDevId()
   sei(); // re-enable all interrupts
 }
 
+
+/***********************************/
+/* Power on and shutdown functions */
+/***********************************/
+
+void power_up()
+{
+  char tmp[25];
+
+  // blink
+  blink_led(3, 100);
+
+  bg_gps_on();
+  sd_log_pwr_on();
+  bg_sensors_on();
+  
+  // set initial state of Geiger to void
+  geiger_status = VOID;
+  str_count = 0;
+  
+  // ***WARNING*** turn High Voltage board ON ***WARNING***
+  bg_hvps_on();
+  delay(50); // wait for power to stabilize
+
+  // And now Start the Pulse Counter!
+  hwc.start();
+
+  // Starting now!
+  Serial.println("bGeigie powered on!");
+}
+
+void shutdown()
+{
+  // indicate something is happening
+  blink_led(3, 100);
+
+  bg_gps_off();
+  sd_log_pwr_off();
+  chibiSleepRadio(1);
+  bg_hvps_off();
+  bg_sensors_off();
+  bg_led_off();
+
+  // we turn all pins to input no pull-up to save power
+  // this will also turn off all the peripherals
+  // automatically via external pull-up resistors
+  /*
+  for (int i=0 ; i < NUM_DIGITAL_PINS ; i++)
+  {
+    digitalWrite(i, LOW);
+    pinMode(i, INPUT);
+  }
+  */
+
+  // say goodbye...
+  Serial.println("bGeigie sleeps... good night.");
+  delay(20);
+}
+
+
+/**************************/
+/* command line functions */
+/**************************/
+
+void printHelp()
+{
+  Serial.print("Device id: ");
+  Serial.println(dev_id);
+  Serial.println("List of commands:");
+  Serial.print("  Set new device id: setid <id>    id is ");
+  Serial.print(BMRDD_ID_LEN);
+  Serial.println(" characters long");
+  Serial.println("  Get device id:     getid");
+  Serial.println("  Show this help:    help");
+}
+
+void cmdPrintHelp(int arg_cnt, char **args)
+{
+  printHelp();
+}  
+
+/* set new device id in EEPROM */
+void cmdSetId(int arg_cnt, char **args)
+{
+  if (arg_cnt != 2)
+  {
+    Serial.print("Synthax: setid <id>    id is ");
+    Serial.print(BMRDD_ID_LEN);
+    Serial.println(" characters long");
+    return;
+  }
+
+  int len = 0;
+  while (args[1][len] != NULL)
+    len++;
+
+  if (len != BMRDD_ID_LEN)
+  {
+    Serial.print("Synthax: setid <id>     id is ");
+    Serial.print(BMRDD_ID_LEN);
+    Serial.println(" characters long");
+    return;
+  } 
+
+  for (int i=0 ; i < BMRDD_ID_LEN ; i++)
+  {
+    EEPROM.write(BMRDD_EEPROM_ID+i, byte(args[1][i]));
+    dev_id[i] = args[1][i];
+  }
+  Serial.print("Device id: ");
+  Serial.println(dev_id);
+}
+
+void cmdGetId(int arg_cnt, char **args)
+{
+  pullDevId();
+  Serial.print("Device id: ");
+  Serial.println(dev_id);
+}
+
+
+/********/
+/* misc */
+/********/
+
+void blink_led(unsigned int N, unsigned int D)
+{
+  for (int i=0 ; i < N ; i++)
+  {
+    bg_led_on();
+    delay(D);
+    bg_led_off();
+    delay(D);
+  }
+}

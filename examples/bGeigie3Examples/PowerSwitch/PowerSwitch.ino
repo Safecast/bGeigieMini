@@ -17,9 +17,6 @@ void setup()
   bg_led_config();
   bg_led_off();
 
-  pinMode(main_switch, INPUT);
-  Serial.println(digitalRead(main_switch));
-
   // enable interrupt
   sei();
 
@@ -41,15 +38,42 @@ void loop()
 
 void wakeup()
 {
+  // blink 3x
+  bg_led_on();
+  delay(100);
+  bg_led_off();
+  delay(100);
+  bg_led_on();
+  delay(100);
+  bg_led_off();
+  delay(100);
+  bg_led_on();
+  delay(100);
+  bg_led_off();
+
+  // say something
   Serial.print("Wake up! state=");
   Serial.println(bg_pwr_state);
 }
 
 void sleepy()
 {
+  // blink 3x
+  bg_led_on();
+  delay(100);
   bg_led_off();
+  delay(100);
+  bg_led_on();
+  delay(100);
+  bg_led_off();
+  delay(100);
+  bg_led_on();
+  delay(100);
+  bg_led_off();
+
+  // say goodbye
   Serial.print("Sleeping now... state=");
   Serial.println(bg_pwr_state);
-  delay(10);
+  delay(10);  // let some time to serial to finish
 }
 

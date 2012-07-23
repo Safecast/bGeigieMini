@@ -85,11 +85,6 @@
 #define MTK_UPDATE_RATE_1HZ "$PMTK220,1000*1F"
 #define MTK_UPDATE_RATE_ACK "$PMTK001,220,3*30"
 
-// gps power pin
-static int gps_pwr;
-#define gps_on() digitalWrite(gps_pwr, LOW)
-#define gps_off() digitalWrite(gps_pwr, HIGH)
-
 // time structure
 typedef struct
 {
@@ -126,7 +121,6 @@ typedef struct
 
 // 'public' methods
 void gps_init(HardwareSerial *serial, char *line);
-void gps_pwr_init(int pin_pwr);
 void gps_update();
 int gps_available();
 gps_t *gps_getData();

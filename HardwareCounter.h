@@ -72,6 +72,7 @@ class HardwareCounter
     long _start_time;
     long _delay;
     unsigned int _count;
+    unsigned int _pin;
 
 };
 
