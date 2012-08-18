@@ -1,6 +1,11 @@
 
 #include <SPI.h>
 #include <SD.h>
+
+#include <avr/power.h>
+
+#include <bg_pwr.h>
+
 #include "sd_reader_int.h"
 
 // SD card object
@@ -64,8 +69,8 @@ void sd_reader_setup()
   pinMode(sd_detect, INPUT);
   digitalWrite(sd_detect, HIGH);
 
-  pinMode(led, OUTPUT);     // LED
-  digitalWrite(led, LOW);  // turn LED on
+  //pinMode(led, OUTPUT);     // LED
+  //digitalWrite(led, LOW);  // turn LED on
 
   pinMode(irq_32u4, INPUT); // IRQ
   BG_SD_READER_INTP();     // set pin change interrupt
@@ -74,18 +79,9 @@ void sd_reader_setup()
   for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
     buffer[i] = 0x0;
 
-  // state state to IDLE
-  if (sd_reader_init())
-  {
-    Serial.println("SD card activated.");
-    sd_reader_state = SD_READER_ACTIVE;
-  } 
-  else
-  {
-    Serial.println("Failed to activate SD card.");
-    sd_reader_state = SD_READER_IDLE;
-  }
-  //sd_reader_state = SD_READER_IDLE;
+  // start in IDLE mode
+  Serial.println("SD Reader started on IDLE.");
+  sd_reader_state = SD_READER_IDLE;
 }
 
 void sd_reader_loop()
@@ -176,6 +172,13 @@ ISR(BG_32U4_IRQ)
   {
     // light LED off
     digitalWrite(led, HIGH);
+
+    // check if power was out
+    if (bg_pwr_state == BG_STATE_PWR_DOWN)
+    {
+      power_spi_enable();
+      power_usart0_enable();
+    }
 
     // update timestamp
     last_interrupt = millis();

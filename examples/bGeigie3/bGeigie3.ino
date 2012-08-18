@@ -49,6 +49,7 @@
 #include <sd_logger.h>
 #include <bg_sensors.h>
 #include <bg_pwr.h>
+#include <sd_reader_int.h>
 
 // version header
 #include "version.h"
@@ -61,9 +62,14 @@
 #define BMRDD_ID_LEN 3
 
 // Radio options
-#define TX_ENABLED 1
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20            // transmission channel
+
+// Enable or Disable features
+#define RADIO_ENABLE 1
+#define SD_READER_ENABLE 0
+#define BG_PWR_ENABLE 1
+#define CMD_LINE_ENABLE 1
 
 // Messages and Errors in Flash
 static char msg_device_id[] PROGMEM = "Device id: ";
@@ -139,7 +145,7 @@ void setup()
   Serial.print(tmp);
   Serial.println(dev_id);
 
-#if TX_ENABLED
+#if RADIO_ENABLE
   // init chibi on channel normally 20
   chibiInit();
   chibiSetChannel(CHANNEL);
@@ -160,12 +166,21 @@ void setup()
   hwc.start();
 
   // setup command line commands
+#if CMD_LINE_ENABLE
   cmdAdd("help", cmdPrintHelp);
   cmdAdd("setid", cmdSetId);
   cmdAdd("getid", cmdGetId);
+#endif 
+
+  // setup the SD reader
+#if SD_READER_ENABLE
+  sd_reader_setup();
+#endif
 
   // setup power management
+#if BG_PWR_ENABLE
   bg_pwr_init(main_switch, power_up, shutdown);
+#endif
 
   // Starting now!
   Serial.println("Starting now!");
@@ -180,132 +195,150 @@ void loop()
 {
   char tmp[25];
 
-  // power management loop routine
-  bg_pwr_loop();
+#if SD_READER_ENABLE
+  // First do the SD Reader loop
+  sd_reader_loop();
 
-  // command line loop polling routing
-  cmdPoll();
-
-  // update gps
-  gps_update();
-
-  // generate CPM every TIME_INTERVAL seconds
-  if (hwc.available())
+  // We lock the SD reader if possible when executing the loop
+  if (sd_reader_lock())
+#endif
   {
-    if (gps_available())
+
+#if BG_PWR_ENABLE
+    // power management loop routine
+    bg_pwr_loop();
+#endif
+
+#if CMD_LINE_ENABLE
+    // command line loop polling routing
+    cmdPoll();
+#endif
+
+    // update gps
+    gps_update();
+
+    // generate CPM every TIME_INTERVAL seconds
+    if (hwc.available())
     {
-      unsigned long cpm=0, cpb=0;
-      byte line_len;
-
-      // obtain the count in the last bin
-      cpb = hwc.count();
-
-      // reset the pulse counter
-      hwc.start();
-
-      // insert count in sliding window and compute CPM
-      shift_reg[reg_index] = cpb;     // put the count in the correct bin
-      reg_index = (reg_index+1) % NX; // increment register index
-      cpm = cpm_gen();                // compute sum over all bins
-
-      // update the total counter
-      total_count += cpb;
-      
-      // set status of Geiger
-      if (str_count < NX)
+      if (gps_available())
       {
-        geiger_status = VOID;
-        str_count++;
-      } else if (cpm == 0) {
-        geiger_status = VOID;
-      } else {
-        geiger_status = AVAILABLE;
-      }
+        unsigned long cpm=0, cpb=0;
+        byte line_len;
+
+        // obtain the count in the last bin
+        cpb = hwc.count();
+
+        // reset the pulse counter
+        hwc.start();
+
+        // insert count in sliding window and compute CPM
+        shift_reg[reg_index] = cpb;     // put the count in the correct bin
+        reg_index = (reg_index+1) % NX; // increment register index
+        cpm = cpm_gen();                // compute sum over all bins
+
+        // update the total counter
+        total_count += cpb;
+        
+        // set status of Geiger
+        if (str_count < NX)
+        {
+          geiger_status = VOID;
+          str_count++;
+        } else if (cpm == 0) {
+          geiger_status = VOID;
+        } else {
+          geiger_status = AVAILABLE;
+        }
 
 
-      if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
-      {
-        // flag GPS acquired
-        gps_init_acq = 1;
+        if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
+        {
+          // flag GPS acquired
+          gps_init_acq = 1;
 
-        // Create the filename for that drive
-        strcpy(filename, dev_id);
-        strcat(filename, "-");
-        strncat(filename, gps_getData()->date+2, 2);
-        strncat(filename, gps_getData()->date, 2);
+          // Create the filename for that drive
+          strcpy(filename, dev_id);
+          strcat(filename, "-");
+          strncat(filename, gps_getData()->date+2, 2);
+          strncat(filename, gps_getData()->date, 2);
 
-        // Prepare new log file header
-        sprintf(line, "# bGeigie - v%s\n# New log begin", version);
+          // Prepare new log file header
+          sprintf(line, "# bGeigie - v%s\n# New log begin", version);
 
-        // write to log file on SD card
-        strcpy(filename+8, ext_log);
-        sd_log_writeln(filename, line);
+          // write to log file on SD card
+          strcpy(filename+8, ext_log);
+          sd_log_writeln(filename, line);
 
-        // write to status file as well
-        strcpy(filename+8, ext_sts);
-        sd_log_writeln(filename, line);
-      }
-      
-      // generate timestamp. only update the start time if 
-      // we printed the timestamp. otherwise, the GPS is still 
-      // updating so wait until its finished and generate timestamp
-      line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
-      
-      if (gps_init_acq == 0)
-      {
-        Serial.print("No GPS: ");
-        sd_log_last_write = 0;   // because we don't write to SD before GPS lock
-      }
-      else
-      {
-        // dump data to SD card
-        strcpy(filename+8, ext_log);
-        sd_log_writeln(filename, line);
-      }
-
-#if TX_ENABLED
-      // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-      chibiSleepRadio(0);
-      delay(10);
-      chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-      chibiSleepRadio(1);
-#endif
-
-      // blink if log written
-      if (sd_log_last_write == 1)
-      {
-        if (gps_getData()->status[0] == AVAILABLE)
-          blink_led(1, 100);
+          // write to status file as well
+          strcpy(filename+8, ext_sts);
+          sd_log_writeln(filename, line);
+        }
+        
+        // generate timestamp. only update the start time if 
+        // we printed the timestamp. otherwise, the GPS is still 
+        // updating so wait until its finished and generate timestamp
+        line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
+        
+        if (gps_init_acq == 0)
+        {
+          Serial.print("No GPS: ");
+          sd_log_last_write = 0;   // because we don't write to SD before GPS lock
+        }
         else
-          blink_led(2, 100);
-      }
+        {
+          // dump data to SD card
+          strcpy(filename+8, ext_log);
+          sd_log_writeln(filename, line);
+        }
 
-      // output through Serial too
-      Serial.println(line);
-
-      // Now take care of the Status message
-      line_len = bg_status_str_gen(line);
-
-      // write to SD status file
-      if (gps_init_acq != 0)
-      {
-        strcpy(filename+8, ext_sts);
-        sd_log_writeln(filename, line);
-      }
-
-#if TX_ENABLED
-      // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-      chibiSleepRadio(0);
-      delay(10);
-      chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-      chibiSleepRadio(1);
+#if RADIO_ENABLE
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
 #endif
-    
-      // show in Serial stream
-      Serial.println(line);
 
-    } /* gps_available */
-  } /* hwc_available */
+        // blink if log written
+        if (sd_log_last_write == 1)
+        {
+          if (gps_getData()->status[0] == AVAILABLE)
+            blink_led(1, 100);
+          else
+            blink_led(2, 100);
+        }
+
+        // output through Serial too
+        Serial.println(line);
+
+        // Now take care of the Status message
+        line_len = bg_status_str_gen(line);
+
+        // write to SD status file
+        if (gps_init_acq != 0)
+        {
+          strcpy(filename+8, ext_sts);
+          sd_log_writeln(filename, line);
+        }
+
+#if RADIO_ENABLE
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+  #endif
+      
+        // show in Serial stream
+        Serial.println(line);
+
+      } /* gps_available */
+    } /* hwc_available */
+
+  } /* sd_reader_lock */
+
+  // Unlock the SD reader after the loop
+  sd_reader_unlock();
 
 }
 
@@ -370,7 +403,6 @@ byte bg_status_str_gen(char *buf)
   t = bgs_read_temperature();
   tf = (int)((t-(int)t)*100);
   h = bgs_read_humidity();
-  Serial.println(h);
   hf = (int)((h-(int)h)*100);
 
   // turn sensors off
