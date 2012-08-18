@@ -41,7 +41,6 @@
 #define NX 12
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20
-#define TX_ENABLED 1
 #define LED_ENABLED 0
 #define PRINT_BUFSZ 80
 #define AVAILABLE 'A'          // indicates geiger data are ready (available)
@@ -49,8 +48,17 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+// compile time options
 #define ENABLE_DIAGNOSTIC 0
+#define PLUSSHIELD 0
 #define JAPAN_POST 0
+#define TX_ENABLED 1
+#define GPS_PROGRAMMING 1
+
+// GPS type
+#define GPS_MTK 1
+#define GPS_CANMORE 2
+#define GPS_TYPE GPS_MTK
 
 // make sure to include that after JAPAN_POST is defined
 #include "version.h"
@@ -78,7 +86,7 @@ static const int pinV0 = A0;
 static const int pinV1 = A1;
 #endif
 
-#if JAPAN_POST
+#if PLUSSHIELD
 // pin to enable boost converter of LiPo battery
 static const int pinBoost = 2;
 #endif
@@ -107,7 +115,7 @@ char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
-char fileHeader[] = "# NEW LOG\n# firmware=";
+static char fileHeader[] PROGMEM = "# NEW LOG\n# firmware=";
 
 
 // Status vector
@@ -146,10 +154,13 @@ void setup()
 #endif
   
   // initialize and program the GPS module
+#if GPS_PROGRAMMING
   gps_program_settings();
+#endif
 
   // print header to serial
-  Serial.print(fileHeader);
+  strcpy_P(tmp, fileHeader);
+  Serial.print(tmp);
   Serial.println(version);
 
   // make sure that the default chip select pin is set to
@@ -168,7 +179,7 @@ void setup()
   analogReference(INTERNAL);
 #endif
 
-#if JAPAN_POST
+#if PLUSSHIELD
   // setup pin for boost converter
   pinMode(pinBoost, OUTPUT);
   digitalWrite(pinBoost, LOW);
@@ -256,7 +267,7 @@ void loop()
   // generate CPM every TIME_INTERVAL seconds
   if (interruptCounterAvailable())
   {
-#if JAPAN_POST
+#if PLUSSHIELD
     // give a pulse to enable boost converter of LiPo pack
     pinMode(pinBoost, OUTPUT);
     digitalWrite(pinBoost, LOW);
@@ -339,7 +350,8 @@ void loop()
           Serial.print("Filename: ");
           Serial.println(filename);
           dataFile.print("\n");
-          dataFile.print(fileHeader);
+          strcpy_P(tmp, fileHeader);
+          dataFile.print(tmp);
           dataFile.println(version);
           dataFile.close();
         }
@@ -355,7 +367,8 @@ void loop()
         if (dataFile)
         {
           dataFile.print("\n");
-          dataFile.print(fileHeader);
+          strcpy_P(tmp, fileHeader);
+          dataFile.print(tmp);
           dataFile.println(version);
           dataFile.close();
         }
@@ -472,7 +485,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
 #endif
   
   memset(buf, 0, LINE_SZ);
-  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s",  \
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s"),  \
               hdr, \
               dev_id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
@@ -644,8 +657,19 @@ float read_voltage(int pin)
 }
 #endif
 
+#if GPS_PROGRAMMING
 void gps_program_settings()
 {
+  // wait for GPS to start
+  int t = 0;
+  while(!Serial.available() && t < 5000)
+  {
+    delay(10);
+    t += 10;
+  }
+
+#if GPS_TYPE == GPS_CANMORE
+
   // all GPS command taken from datasheet
   // "Binary Messages Of SkyTraq Venus 6 GPS Receiver"
 
@@ -657,19 +681,25 @@ void gps_program_settings()
   uint8_t GPS_MSG_PWR_SAVE[3] = { 0x0C, 0x01, 0x01 }; // update to FLASH too
   uint16_t GPS_MSG_PWR_SAVE_L = 3;
 
-  // wait for GPS to start
-  int t = 0;
-  while(!Serial.available() && t < 5000)
-  {
-    delay(10);
-    t += 10;
-  }
-
   // send all commands
   gps_send_message(GPS_MSG_OUTPUT_GGARMC_1S, GPS_MSG_OUTPUT_GGARMC_1S_L);
   gps_send_message(GPS_MSG_PWR_SAVE, GPS_MSG_PWR_SAVE_L);
-}
 
+#elif GPS_TYPE == GPS_MTK
+
+  char tmp[55];
+
+  /* Set GPS output to NMEA GGA and RMC only at 1Hz */
+  strcpy_P(tmp, PSTR(MTK_SET_NMEA_OUTPUT_RMCGGA));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR(MTK_UPDATE_RATE_1HZ));
+  Serial.println(tmp);
+
+#endif /* GPS_TYPE */
+}
+#endif /* GPS_PROGAMMING */
+
+#if GPS_PROGRAMMING && GPS_TYPE == GPS_CANMORE
 void gps_send_message(const uint8_t *msg, uint16_t len)
 {
   uint8_t chk = 0x0;
@@ -714,3 +744,4 @@ void gps_send_message(const uint8_t *msg, uint16_t len)
   Serial.write((byte)'\n');
 #endif
 }
+#endif /* GPS_CANMORE */
