@@ -24,8 +24,8 @@ static const int main_switch = 0;
 // sensors
 static const int batt_sense = 31; //A7;
 static const int temp_sense = 30; //A6;
-static const int hv_sense = 29; //A5;
-static const int hum_sense = 28; //A4;
+static const int hum_sense = 29; //A5;
+static const int hv_sense = 28; //A4;
 static const int sense_pwr = 19;
 static const int charge_stat = 23;
 

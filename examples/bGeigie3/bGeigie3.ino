@@ -88,8 +88,8 @@ static HardwareCounter hwc(counts, TIME_INTERVAL);
 static char line[LINE_SZ];
 
 char filename[13];              // placeholder for filename
-char hdr[] = "BGNRDD";         // BGeigie New RaDiation Detector header
-char hdr_status[] = "BGNSTS";  // Status message header
+char hdr[] = "BNRDD";         // BGeigie New RaDiation Detector header
+char hdr_status[] = "BNSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];    // device id
 char ext_log[] = ".log";
 char ext_sts[] = ".sts";

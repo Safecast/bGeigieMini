@@ -12,6 +12,7 @@
 
 #include <HardwareCounter.h>
 #include <bg3_pins.h>
+#include <bg_sensors.h>
 #include <SD.h>
 #include <SPI.h>
 
@@ -35,6 +36,8 @@ void setup()
   bg_hvps_pwr_config();
   bg_hvps_on();
 
+  bgs_sensors_init(sense_pwr, batt_sense, temp_sense, hum_sense, hv_sense);
+
   // Start the counter
   counter.start();
 
@@ -57,7 +60,10 @@ void loop()
     Serial.print("Counts in last 5 seconds: ");
     Serial.print(cpb);
     Serial.print(" and last minute: ");
-    Serial.println(cpm);
+    Serial.print(cpm);
+    Serial.print(" (HV == ");
+    Serial.print(bgs_read_hv());
+    Serial.println(")");
 
     // restart the counter
     counter.start();
