@@ -70,6 +70,8 @@
 #define SD_READER_ENABLE 0
 #define BG_PWR_ENABLE 1
 #define CMD_LINE_ENABLE 1
+#define HVPS_SENSING 0
+
 
 // Messages and Errors in Flash
 static char msg_device_id[] PROGMEM = "Device id: ";
@@ -88,8 +90,8 @@ static HardwareCounter hwc(counts, TIME_INTERVAL);
 static char line[LINE_SZ];
 
 char filename[13];              // placeholder for filename
-char hdr[] = "BNRDD";         // BGeigie New RaDiation Detector header
-char hdr_status[] = "BNSTS";  // Status message header
+char hdr[] = "BNXRDD";         // BGeigie New RaDiation Detector header
+char hdr_status[] = "BNXSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];    // device id
 char ext_log[] = ".log";
 char ext_sts[] = ".sts";
@@ -351,7 +353,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   gps_t *ptr = gps_getData();
   
   memset(buf, 0, LINE_SZ);
-  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s",  \
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
               hdr, \
               dev_id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
@@ -364,6 +366,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
               ptr->lon, ptr->lon_hem, \
               ptr->altitude, \
               ptr->status, \
+              ptr->num_sat, \
               ptr->precision, \
               ptr->quality);
    len = strlen(buf);
@@ -413,7 +416,8 @@ byte bg_status_str_gen(char *buf)
 
   // create string
   memset(buf, 0, LINE_SZ);
-  sprintf(buf, "$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d.%d,%d.%d,%d,%d,%d,%d,%d",  \
+#if HVPS_SENSING
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
               hdr_status, \
               dev_id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
@@ -421,8 +425,25 @@ byte bg_status_str_gen(char *buf)
               ptr->lat, ptr->lat_hem, \
               ptr->lon, ptr->lon_hem, \
               version, \
-              (int)t, tf, (int)h, hf, batt, hv, \
+              (int)t,  \
+              (int)h,  \
+              batt, \
+              hv, \
               sd_log_inserted, sd_log_initialized, sd_log_last_write);
+#else
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d"),  \
+              hdr_status, \
+              dev_id, \
+              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+              ptr->lat, ptr->lat_hem, \
+              ptr->lon, ptr->lon_hem, \
+              version, \
+              (int)t,  \
+              (int)h,  \
+              batt, \
+              sd_log_inserted, sd_log_initialized, sd_log_last_write);
+#endif
   len = strlen(buf);
   buf[len] = '\0';
 
