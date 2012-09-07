@@ -98,28 +98,36 @@ void gps_update()
         _index=0;
 
         // dump the raw GPS data
-        //_serial->print(_line);
+        //Serial.print(_line);
 
-        // tokenize line
-        tok[j] = strtok(_line, ",");
-        do
-        {
-           tok[++j] = strtok(NULL, ",");
-        } 
-        while ((j < SYM_SZ) && (tok[j] != NULL));
+        // verify the line is valid NMEA sentence
+        int L = strlen(_line);
+        int valid_sentence = gps_verify_NMEA_sentence(_line, L-2); // -2 is for \r\n
 
-        // reset the index variable for next run
-        j = 0;
+        // if the sentence is a valide sentence, try to parse it
+        if (valid_sentence)
+        {
+          // tokenize line
+          char *string;
 
-        // parse line and date/time and update gps struct
-        if (strcmp(tok[0], "$GPRMC") == 0)
-        {
-          parse_line_rmc(tok);
-          parse_datetime();
-        }
-        else if (strcmp(tok[0], "$GPGGA") == 0)
-        {
-           parse_line_gga(tok);
+          string = _line;
+
+          while ((tok[j++] = strsep(&string, ",")) != NULL)
+            ;
+
+          // reset the index variable for next run
+          j = 0;
+
+          // parse line and date/time and update gps struct
+          if (strcmp(tok[0], "$GPRMC") == 0)
+          {
+            parse_line_rmc(tok);
+            parse_datetime();
+          }
+          else if (strcmp(tok[0], "$GPGGA") == 0)
+          {
+             parse_line_gga(tok);
+          }
         }
         
         // clear the flag so that we know its okay to read the data
@@ -152,6 +160,49 @@ char gps_checksum(char *s, int N)
   return chk;
 }
 
+// compare checksum of string str of length L
+// with hex checksum contained in length 2 string chk
+int gps_checksum_match(char *str, int L, char *chk)
+{
+  char ch1, ch2;
+
+  // compute local checksum
+  char chk_str = gps_checksum(str+1, L-4);
+
+  // transform hex string to char
+  // first digit
+  if (chk[0] > '9')
+    ch1 = chk[0] - 'A' + 10;
+  else
+    ch1 = chk[0] - '0';
+  // second digit
+  if (chk[1] > '9')
+    ch2 = chk[1] - 'A' + 10;
+  else
+    ch2 = chk[1]-'0';
+  char chk_num = ch1*16 + ch2;
+
+  // return result of matching
+  return (chk_str == chk_num);
+}
+
+// verify formating and checksum of NMEA-style sentence of length L
+int gps_verify_NMEA_sentence(char *sentence, int L)
+{
+  // basice property, starts with dollar, ends with star
+  if (sentence[0] != '$' || sentence[L-3] != '*')
+    return false;
+
+  // verify checksum is hex string
+  if ( ! ( (sentence[L-2] >= '0' && sentence[L-2] <= '9') || (sentence[L-2] <= 'F' && sentence[L-2] >= 'A') ) )
+    return false;
+  if ( ! ( (sentence[L-1] >= '0' && sentence[L-1] <= '9') || (sentence[L-1] <= 'F' && sentence[L-1] >= 'A') ) )
+    return false;
+
+  // if we reach that part, just return checksum matching result
+  return gps_checksum_match(sentence+1, L-4, sentence+L-2);
+}
+
 // Return reference to GPS data structure
 gps_t *gps_getData() 
 { 
@@ -161,25 +212,59 @@ gps_t *gps_getData()
 // Parse RMC sentence
 void parse_line_rmc(char **token)
 {
-  memcpy(&_gps_data.utc,        token[1],     UTC_SZ-1);
-  memcpy(&_gps_data.status,     token[2],     DEFAULT_SZ-1);
-  memcpy(&_gps_data.lat,        token[3],     LAT_SZ-1);
-  memcpy(&_gps_data.lat_hem,    token[4],     DEFAULT_SZ-1);
-  memcpy(&_gps_data.lon,        token[5],     LON_SZ-1);
-  memcpy(&_gps_data.lon_hem,    token[6],     DEFAULT_SZ-1);
-  memcpy(&_gps_data.speed,      token[7],     SPD_SZ-1);
-  memcpy(&_gps_data.course,     token[8],     CRS_SZ-1);
-  memcpy(&_gps_data.date,       token[9],     DATE_SZ-1);
-  memcpy(&_gps_data.checksum,   token[10],    CKSUM_SZ-1);
+  // put all that to zero
+  memset(&_gps_data.utc,        0,     UTC_SZ-1);
+  memset(&_gps_data.status,     0,     DEFAULT_SZ-1);
+  memset(&_gps_data.lat,        0,     LAT_SZ-1);
+  memset(&_gps_data.lat_hem,    0,     DEFAULT_SZ-1);
+  memset(&_gps_data.lon,        0,     LON_SZ-1);
+  memset(&_gps_data.lon_hem,    0,     DEFAULT_SZ-1);
+  memset(&_gps_data.speed,      0,     SPD_SZ-1);
+  memset(&_gps_data.course,     0,     CRS_SZ-1);
+  memset(&_gps_data.date,       0,     DATE_SZ-1);
+  memset(&_gps_data.checksum,   0,     CKSUM_SZ-1);
+
+  // now if token is not NULL, copy into the GPS data structure
+  if (token[1][0] != 0)
+    memcpy(&_gps_data.utc,        token[1],     UTC_SZ-1);
+  if (token[2][0] != 0)
+    memcpy(&_gps_data.status,     token[2],     DEFAULT_SZ-1);
+  if (token[3][0] != 0)
+    memcpy(&_gps_data.lat,        token[3],     LAT_SZ-1);
+  if (token[4][0] != 0)
+    memcpy(&_gps_data.lat_hem,    token[4],     DEFAULT_SZ-1);
+  if (token[5][0] != 0)
+    memcpy(&_gps_data.lon,        token[5],     LON_SZ-1);
+  if (token[6][0] != 0)
+    memcpy(&_gps_data.lon_hem,    token[6],     DEFAULT_SZ-1);
+  if (token[7][0] != 0)
+    memcpy(&_gps_data.speed,      token[7],     SPD_SZ-1);
+  if (token[8][0] != 0)
+    memcpy(&_gps_data.course,     token[8],     CRS_SZ-1);
+  if (token[9][0] != 0)
+    memcpy(&_gps_data.date,       token[9],     DATE_SZ-1);
+  if (token[10][0] != 0)
+    memcpy(&_gps_data.checksum,   token[10],    CKSUM_SZ-1);
 }
 
 // Parse GGA sentence
 void parse_line_gga(char **token)
 {
-    memcpy(&_gps_data.quality,    token[6], DEFAULT_SZ-1);
-    memcpy(&_gps_data.num_sat,   token[7], NUM_SAT_SZ-1);
-    memcpy(&_gps_data.precision, token[8], PRECISION_SZ-1);
-    memcpy(&_gps_data.altitude,  token[9], ALTITUDE_SZ-1);
+    // set structure to zero
+    memset(&_gps_data.quality,    0, DEFAULT_SZ-1);
+    memset(&_gps_data.num_sat,    0, NUM_SAT_SZ-1);
+    memset(&_gps_data.precision,  0, PRECISION_SZ-1);
+    memset(&_gps_data.altitude,   0, ALTITUDE_SZ-1);
+    
+    // now copy data if present
+    if (token[6][0] != 0)
+      memcpy(&_gps_data.quality,    token[6], DEFAULT_SZ-1);
+    if (token[7][0] != 0)
+      memcpy(&_gps_data.num_sat,    token[7], NUM_SAT_SZ-1);
+    if (token[8][0] != 0)
+      memcpy(&_gps_data.precision,  token[8], PRECISION_SZ-1);
+    if (token[9][0] != 0)
+      memcpy(&_gps_data.altitude,   token[9], ALTITUDE_SZ-1);
 }
 
 // Parse date and time from GPS and input in structure

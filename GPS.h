@@ -37,24 +37,6 @@
 #include <WProgram.h>
 #endif
 
-#define LINE_SZ         100
-#define SYM_SZ          20
-#define GPS_TYPE_SZ     10
-#define UTC_SZ          10
-#define LAT_SZ          15
-#define LON_SZ          15
-#define SPD_SZ          8
-#define CRS_SZ          8
-#define DATE_SZ         7
-#define CKSUM_SZ        6
-#define RMC_FLD_SZ      11
-#define NUM_SAT_SZ      3
-#define PRECISION_SZ    5
-#define ALTITUDE_SZ     8
-#define DEV_NAME_SZ     30
-#define MEAS_TYPE_SZ    20
-#define DEFAULT_SZ      2
-
 // MTK Protocol messages
 #define MTK_STANDBY_MODE "$PMTK161,0*28"
 #define MTK_STANDBY_MODE_ACK "$PMTK161,0*28"
@@ -84,6 +66,25 @@
 
 #define MTK_UPDATE_RATE_1HZ "$PMTK220,1000*1F"
 #define MTK_UPDATE_RATE_ACK "$PMTK001,220,3*30"
+
+// GPS field size in characters
+#define LINE_SZ         100
+#define SYM_SZ          20
+#define GPS_TYPE_SZ     10
+#define UTC_SZ          10
+#define LAT_SZ          15
+#define LON_SZ          15
+#define SPD_SZ          8
+#define CRS_SZ          8
+#define DATE_SZ         7
+#define CKSUM_SZ        6
+#define RMC_FLD_SZ      11
+#define NUM_SAT_SZ      3
+#define PRECISION_SZ    5
+#define ALTITUDE_SZ     8
+#define DEV_NAME_SZ     30
+#define MEAS_TYPE_SZ    20
+#define DEFAULT_SZ      2
 
 // time structure
 typedef struct
@@ -125,6 +126,8 @@ void gps_update();
 int gps_available();
 gps_t *gps_getData();
 char gps_checksum(char *s, int N);
+int gps_checksum_match(char *str, int L, char *chk);
+int gps_verify_NMEA_sentence(char *sentence, int L);
 unsigned long gps_age();
 
 #endif /* GPS_H */
