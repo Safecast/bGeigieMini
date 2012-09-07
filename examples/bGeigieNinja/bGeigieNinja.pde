@@ -29,6 +29,9 @@
 */
 
 
+#include <SD.h>
+#include <SPI.h>
+
 #include <chibi.h>
 #include <GPS.h>
 
@@ -66,6 +69,13 @@ char rad_flag = 'A';
 char gps_flag = 'A';
 char data_corrupt_flag = 0;
 char dev_id[BMRDD_ID_LEN+1];  // device id
+
+// diagnostic variables
+int temperature = -1;
+int humidity = -1;
+int battery = -1;
+int hv = -1;
+int sd_status = 1;
 
 // link status variable
 char lnk_flag = 'X';
@@ -219,28 +229,30 @@ void loop()
       else
         lcd.print("NoGeiger");
 
-      // connection info on the 2nd row
+      // Status info on second line
       lcd.setCursor(0, 1);
-      if (gps_flag == 'A')
+      if (sd_status == 0)
       {
-        line[0] = 'G';
-        line[1] = 'P';
-        line[2] = 'S';
-        line[3] = ' ';
-        line[4] = ' ';
+        strcpy_P(line, PSTR("SD FAIL!"));
+      }
+      else if (battery != -1 && battery < 3.4)
+      {
+        strcpy_P(line, PSTR("LOW BATT"));
+      }
+      else if (hv != -1 && hv < 450)
+      {
+        strcpy_P(line, PSTR("HV LOW"));
+      }
+      else if (gps_flag == 'A')
+      {
+        strcpy_P(line, PSTR("GPS  "));
+        strcpy(line+5, dev_id);
       }
       else
       {
-        line[0] = 'N';
-        line[1] = 'o';
-        line[2] = 'G';
-        line[3] = 'P';
-        line[4] = 'S';
+        strcpy_P(line, PSTR("NOGPS"));
+        strcpy(line+5, dev_id);
       }
-      line[5] = dev_id[0];
-      line[6] = dev_id[1];
-      line[7] = dev_id[2];
-      line[8] = NULL;
       lcd.print(line);
 
       if (uSh_pre < 0.5 && uSh >= 0.5)
@@ -302,80 +314,97 @@ void extract_data(char *buf, int L)
   char *tot;
   char *r_flag;
   char *g_flag;
-  char chk_lc;
-  char chk_rx;
-  char ch1, ch2;
 
   // assume data is good
   data_corrupt_flag = 0;
 
-
-  // compute local checksum
-  chk_lc = gps_checksum(buf+1, L-4);
-
-  // get checksum from rx data
-  if (buf[L-2] > '9')
-    ch1 = buf[L-2] - 'A' + 10;
-  else
-    ch1 = buf[L-2] - '0';
-  if (buf[L-1] > '9')
-    ch2 = buf[L-1] - 'A' + 10;
-  else
-    ch2 = buf[L-1]-'0';
-  chk_rx = ch1*16 + ch2;
-
-  if (chk_lc != chk_rx)
+  // verify NMEA formatting of received sentence
+  if (!gps_verify_NMEA_sentence(buf, L))
   {
     data_corrupt_flag = 1;
-    Serial.print("Checksum mismatch. Received: ");
-    Serial.print(chk_rx, HEX);
-    Serial.print(" Computed: ");
-    Serial.println(chk_lc, HEX);
+    Serial.print("NMEA format check failed.");
     return;
   }
+
+  // tokenize line
+  char *tok[SYM_SZ] = {0};
+  int j = 0;
+  char *string;
+  string = buf;
+  while ((tok[j++] = strsep(&string, ",")) != NULL)
+    ;
  
-  // first getting device id
-  if (L >= 9)
+  // parse the line for useful content according to label
+  if (strcmp(tok[0], "$BMRDD") == 0 || strcmp(tok[0], "$BNXRDD") == 0)
   {
-    dev_id[0] = buf[7];
-    dev_id[1] = buf[8];
-    dev_id[2] = buf[9];
-  }
-  else
+
+    // first getting device id
+    memset(dev_id, 0, 4);
+    if (tok[1][0] != 0)
+      memcpy(dev_id, tok[1], 3);
+
+    r_flag = tok[6];  // radiation count available flag
+    g_flag = tok[12]; // GPS location available flag
+
+    if (tok[3][0] != 0)
+      CPM = strtoul(tok[3], NULL, 10);
+    else
+      CPM = 0;
+
+    if (tok[5][0] != 0)
+      total = strtoul(tok[5], NULL, 10);
+    else
+      total = 0;
+
+    /* buzz if rad flag becomes not valid */
+    if (rad_flag == 'A' && r_flag[0] == 'V')
+      buzz(4000, 4, 100, 150);
+    else if (rad_flag == 'V' && r_flag[0] == 'A')
+      buzz(4000, 1, 50, 1);
+    rad_flag = r_flag[0];
+
+    /* buzz if gps flag becomes not valid */
+    if (gps_flag == 'A' && g_flag[0] == 'V')
+      buzz(8000, 4, 100, 150);
+    else if (gps_flag == 'V' && g_flag[0] == 'A')
+      buzz(8000, 1, 50, 0);
+    gps_flag = g_flag[0];
+
+  } 
+  else if (strcmp(tok[0], "$BNXSTS") == 0 && strncmp(tok[1], dev_id, 3) == 0)
   {
-    dev_id[0] = 'Y';
-    dev_id[1] = 'Y';
-    dev_id[2] = 'Y';
+
+    // temperature reading
+    if (tok[8][0] != 0)
+      temperature = atoi(tok[8]);
+    else
+      temperature = -1;
+
+    // humidity reading
+    if (tok[9][0] != 0)
+      humidity = atoi(tok[9]);
+    else
+      humidity = -1;
+
+    // battery
+    if (tok[10][0] != 0)
+      battery = atoi(tok[10]);
+    else
+      battery = -1;
+
+    // high voltage
+    if (tok[11][0] != 0)
+      hv = atoi(tok[11]);
+    else
+      hv = -1;
+
+    // SD card status
+    if (tok[12][0] != '1' || tok[13][0] != '1' || tok[14][0] != '1')
+      sd_status = 0;
+    else
+      sd_status = 1;
+
   }
-  dev_id[3] = 0;
-  
-  // jumping 32 characters to arrive at CPM field
-  strcpy(field, (char *)buf + 32);
-  
-  cpm = strtok(field, ",");   // cpm field
-  strtok(NULL, ",");          // jumping bin count
-  tot= strtok(NULL, ",");  // total count
-  r_flag = strtok(NULL, ","); // cpm valid flag
-  for (i=0 ; i < 5 ; i++)
-    strtok(NULL, ",");
-  g_flag = strtok(NULL, ","); // gps validity flag
-
-  CPM = strtoul(cpm, NULL, 10);
-  total = strtoul(tot, NULL, 10);
-
-  /* buzz if rad flag becomes not valid */
-  if (rad_flag == 'A' && r_flag[0] == 'V')
-    buzz(4000, 4, 100, 150);
-  else if (rad_flag == 'V' && r_flag[0] == 'A')
-    buzz(4000, 1, 50, 1);
-  rad_flag = r_flag[0];
-
-  /* buzz if gps flag becomes not valid */
-  if (gps_flag == 'A' && g_flag[0] == 'V')
-    buzz(8000, 4, 100, 150);
-  else if (gps_flag == 'V' && g_flag[0] == 'A')
-    buzz(8000, 1, 50, 0);
-  gps_flag = g_flag[0];
 
 }
 
@@ -477,10 +506,11 @@ void controlBrightness()
   setBrightness(dim_coeff);
 }
 
+/*
 int FreeRam () 
 {
   extern int __heap_start, *__brkval; 
   int v; 
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
-
+*/

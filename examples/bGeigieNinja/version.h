@@ -5,6 +5,6 @@
  * Defines version number of bGeigie ninja
  */
 
-static char version[] = "1.1.3";
+static char version[] = "1.1.4";
 
 #endif
