@@ -30,7 +30,11 @@ void bgs_sensors_init(int pin_pwr, int pin_batt, int pin_temp, int pin_hum, int 
   bgs_hv = pin_hv;
 
   // set ADC reference
+#if defined(__AVR_ATmega1284P__)
   analogReference(INTERNAL2V56);
+#else
+  analogReference(INTERNAL);
+#endif
 
   // set sensors switch pin
   pinMode(bgs_pwr, OUTPUT);

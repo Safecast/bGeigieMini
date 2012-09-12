@@ -43,11 +43,6 @@
 
 #include <LUFA/Drivers/Peripheral/SerialStream.h>
 
-/* define LED macro */
-#define LED_init() DDRF |= (1 << DDF0)
-#define LED_on() PORTF |= (1 << PORTF0)
-#define LED_off() PORTF &= ~(1 << PORTF0)
-
 /** Structure to hold the latest Command Block Wrapper issued by the host, containing a SCSI command to execute. */
 CommandBlockWrapper_t  CommandBlock;
 
@@ -70,18 +65,11 @@ int main(void)
   // turn on interrupt
   sei();
 
-  // config LED
-  LED_init();
-	LED_on();
-
   // init timer
   timer_init();
 
   // setup hardware
 	SetupHardware();
-
-  LED_off();
-	
 
 	for (;;)
 	{
@@ -131,31 +119,6 @@ void SetupHardware(void)
 	USB_Init();
 }
 
-/** Re-enable bits of hw that were disabled to save power */
-void WakeUp(void)
-{
-  sleep_disable();
-
-  //Enable ADC, TWI, SPI, Timer0, Timer1, Timer2
-  ADCSRA |= (1<<ADEN); // Enable ADC
-  ACSR &= ~(1<<ACD);   // Enable the analog comparator
-
-  // this should be set to reflect real usage of analog pins
-  DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC7 pins
-  DIDR1 = 0x00; // Enable digital input buffer on AIN1/0
-  DIDR2 = 0x00; // Enable digital input buffer on ADC8-ADC13
-
-  power_twi_enable();
-  power_spi_enable();
-  power_usart0_enable();
-  power_timer0_enable();
-  power_timer1_enable();
-  power_timer3_enable();
-
-  printf("Wake Up!\r\n");
-
-}
-
 /** Configure AVR for sleep */
 void GoToSleep(void)
 {
@@ -181,23 +144,43 @@ void GoToSleep(void)
   //SMCR |= (1 << SE); // SLEEP!
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_mode();
+
+  /*********/
+  /* SLEEP */
+  /*********/
+
+  /* Processor wakes up here */
+
+  //Enable ADC, TWI, SPI, Timer0, Timer1, Timer2
+  ADCSRA |= (1<<ADEN); // Enable ADC
+  ACSR &= ~(1<<ACD);   // Enable the analog comparator
+
+  // this should be set to reflect real usage of analog pins
+  DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC7 pins
+  DIDR1 = 0x00; // Enable digital input buffer on AIN1/0
+  DIDR2 = 0x00; // Enable digital input buffer on ADC8-ADC13
+
+  power_twi_enable();
+  power_spi_enable();
+  power_usart0_enable();
+  power_timer0_enable();
+  power_timer1_enable();
+  power_timer3_enable();
+
+  printf("Wake Up!\r\n");
+
+  // Init SD card manager
+	SDCardManager_Init();
 }
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs. */
 void EVENT_USB_Device_Connect(void)
 {
-  // if was idle, wake up!
-  if (state == IDLE)
-    WakeUp();
-	
   // switch to CONNECTED state
   state = CONNECTED;
 
 	/* Indicate USB enumerating */
-	LED_on();
-
-  // Init SD card manager
-	SDCardManager_Init();
+	//LED_on();
 
 	/* Reset the MSReset flag upon connection */
 	IsMassStoreReset = false;
@@ -223,21 +206,21 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 	//printf("Ready\r\n");
 	
 	/* Indicate USB connected and ready */
-	LED_on();
+	//LED_on();
 
 	/* Setup Mass Storage In and Out Endpoints */
 	if (!(Endpoint_ConfigureEndpoint(MASS_STORAGE_IN_EPNUM, EP_TYPE_BULK,
 		                             ENDPOINT_DIR_IN, MASS_STORAGE_IO_EPSIZE,
 	                                 ENDPOINT_BANK_DOUBLE)))
 	{
-		LED_off();
+		//LED_off();
 	}
 	
 	if (!(Endpoint_ConfigureEndpoint(MASS_STORAGE_OUT_EPNUM, EP_TYPE_BULK,
 		                             ENDPOINT_DIR_OUT, MASS_STORAGE_IO_EPSIZE,
 	                                 ENDPOINT_BANK_DOUBLE)))
 	{
-		LED_off();
+		//LED_off();
 	}							   
 }
 
@@ -295,7 +278,7 @@ void MassStorage_Task(void)
 	if (Endpoint_IsReadWriteAllowed())
 	{
 		/* Indicate busy */
-		LED_off();
+		//LED_off();
 
 		/* Process sent command block from the host */
 		if (ReadInCommandBlock())
@@ -321,12 +304,12 @@ void MassStorage_Task(void)
 			ReturnCommandStatus();
 
 			/* Indicate ready */
-			LED_on();
+			//LED_on();
 		}
 		else
 		{
 			/* Indicate error reading in the command block from the host */
-      LED_off();
+      //LED_off();
 		}
 	}
 

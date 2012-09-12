@@ -131,7 +131,7 @@ void setup()
   delay(2000);
 
   // Initialize the chibi command line and set the speed to 9600 bps
-  Serial.begin(9600);
+  Serial.begin(57600);
 
   Serial.print("Safecast bGeigie Ninja, version ");
   Serial.println(version);
@@ -231,17 +231,22 @@ void loop()
 
       // Status info on second line
       lcd.setCursor(0, 1);
-      if (sd_status == 0)
-      {
-        strcpy_P(line, PSTR("SD FAIL!"));
-      }
-      else if (battery != -1 && battery < 3.4)
+      if (battery != -1 && battery < 3400)
       {
         strcpy_P(line, PSTR("LOW BATT"));
       }
       else if (hv != -1 && hv < 450)
       {
         strcpy_P(line, PSTR("HV LOW"));
+      }
+      else if (gps_flag == 'V')
+      {
+        strcpy_P(line, PSTR("NOGPS"));
+        strcpy(line+5, dev_id);
+      }
+      else if (sd_status == 0)
+      {
+        strcpy_P(line, PSTR("SD FAIL!"));
       }
       else if (gps_flag == 'A')
       {
@@ -250,9 +255,9 @@ void loop()
       }
       else
       {
-        strcpy_P(line, PSTR("NOGPS"));
-        strcpy(line+5, dev_id);
+        strcpy_P(line, PSTR("STRANGE!"));
       }
+
       lcd.print(line);
 
       if (uSh_pre < 0.5 && uSh >= 0.5)

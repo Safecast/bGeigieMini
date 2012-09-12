@@ -64,7 +64,7 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   // initialize status variables
   sd_log_initialized = 0;
   sd_log_inserted = 0;
-  sd_log_last_write = 0; // because that's where SD is turned on
+  sd_log_last_write = 1; // because we assume things are working when we start
 
   // check if Card is inserted
   if (sd_log_card_missing())

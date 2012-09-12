@@ -95,8 +95,14 @@ extern "C"
 
 //#define get_pin_available() ((PINC >> PC4) & 0x01)
 //#define get_pin_locked() ((PINC >> PC5) & 0x01)
-#define get_pin_available() (0) //Emulate that the card is present
-#define get_pin_locked() (1) //Emulate that the card is always unlocked
+//#define get_pin_available() (0) //Emulate that the card is present
+//#define get_pin_locked() (1) //Emulate that the card is always unlocked
+
+/* define LED macro */
+#define LED_init() DDRF |= (1 << DDF0)
+#define LED_on() PORTF |= (1 << PORTF0)
+#define LED_off() PORTF &= ~(1 << PORTF0)
+
 
 #if SD_RAW_SDHC
     typedef uint64_t offset_t;

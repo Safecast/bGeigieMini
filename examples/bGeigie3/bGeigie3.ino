@@ -431,7 +431,7 @@ byte bg_status_str_gen(char *buf)
               hv, \
               sd_log_inserted, sd_log_initialized, sd_log_last_write);
 #else
-  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d"),  \
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
               hdr_status, \
               dev_id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \

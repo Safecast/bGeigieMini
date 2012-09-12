@@ -167,7 +167,7 @@ int gps_checksum_match(char *str, int L, char *chk)
   char ch1, ch2;
 
   // compute local checksum
-  char chk_str = gps_checksum(str+1, L-4);
+  char chk_str = gps_checksum(str, L);
 
   // transform hex string to char
   // first digit

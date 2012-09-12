@@ -64,7 +64,7 @@ uint32_t SDCardManager_GetNbBlocks(void)
 	}
 
 	CachedTotalBlocks = disk_info.capacity / 512;
-	//printf_P(PSTR("SD blocks: %li\r\n"), TotalBlocks);
+	printf_P(PSTR("SD blocks: %li\r\n"), TotalBlocks);
 	
 	return CachedTotalBlocks;
 }
@@ -114,7 +114,7 @@ void SDCardManager_WriteBlocks(uint32_t BlockAddress, uint16_t TotalBlocks)
 {
 	bool     UsingSecondBuffer   = false;
 
-	//printf_P(PSTR("W %li %i\r\n"), BlockAddress, TotalBlocks);
+	printf_P(PSTR("W %li %i\r\n"), BlockAddress, TotalBlocks);
 
 	/* Wait until endpoint is ready before continuing */
 	if (Endpoint_WaitUntilReady())
@@ -190,7 +190,7 @@ void SDCardManager_ReadBlocks(uint32_t BlockAddress, uint16_t TotalBlocks)
 	uint16_t CurrPage          = BlockAddress;
 	uint16_t CurrPageByte      = 0;
 
-	//printf_P(PSTR("R %li %i\r\n"), BlockAddress, TotalBlocks);
+	printf_P(PSTR("R %li %i\r\n"), BlockAddress, TotalBlocks);
 	
 	/* Wait until endpoint is ready before continuing */
 	if (Endpoint_WaitUntilReady())

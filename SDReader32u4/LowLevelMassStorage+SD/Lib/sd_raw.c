@@ -188,10 +188,6 @@ uint8_t sd_raw_init()
 {
   uint8_t b;
 
-  /* enable inputs for reading card status */
-  configure_pin_available();
-  configure_pin_locked();
-
   sd_raw_spi_init();
 
   printf("Send SD on command.\r\n");
@@ -210,9 +206,6 @@ uint8_t sd_raw_init()
   /* initialization procedure */
   sd_raw_card_type = 0;
 
-  if(!sd_raw_available())
-    return 0;
-
   /* the first block is likely to be accessed first, so precache it here */
   raw_block_address = (offset_t) -1;
 #if SD_RAW_WRITE_BUFFERING
@@ -222,28 +215,6 @@ uint8_t sd_raw_init()
     return 0;
 
   return 1;
-}
-
-/**
- * \ingroup sd_raw
- * Checks wether a memory card is located in the slot.
- *
- * \returns 1 if the card is available, 0 if it is not.
- */
-uint8_t sd_raw_available()
-{
-  return get_pin_available() == 0x00;
-}
-
-/**
- * \ingroup sd_raw
- * Checks wether the memory card is locked for write access.
- *
- * \returns 1 if the card is locked, 0 if it is not.
- */
-uint8_t sd_raw_locked()
-{
-  return get_pin_locked() == 0x00;
 }
 
 /**
@@ -334,7 +305,9 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
       delay(50);
       printf("Retry ");
     }
-    //printf("%hd %ld\r\n", command, arg);
+    //printf("C %hd %ld\r\n", command, arg);
+
+    LED_on();
 
     /* interrupt request */
     irq_high();
@@ -351,6 +324,8 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
 
     /* finish interrupt request */
     irq_low();
+
+    LED_off();
 
     // after 255 trials, fail
     if (n_try == 0xff)
@@ -500,9 +475,6 @@ uint8_t sd_raw_read_interval(offset_t offset, uint8_t* buffer, uintptr_t interva
  */
 uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
 {
-  if(sd_raw_locked())
-    return 0;
-
   offset_t block_address;
   uint16_t block_offset;
   uint16_t write_length;
@@ -676,7 +648,7 @@ uint8_t sd_raw_sync()
  */
 uint8_t sd_raw_get_info(struct sd_raw_info* info)
 {
-  if(!info || !sd_raw_available())
+  if(!info)
     return 0;
 
   memset(info, 0, sizeof(*info));

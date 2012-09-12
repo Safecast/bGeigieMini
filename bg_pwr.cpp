@@ -117,7 +117,9 @@ void bg_pwr_down()
   power_timer0_disable();
   power_timer1_disable();
   power_timer2_disable();
+#if defined(__AVR_ATmega1284P__)
   power_timer3_disable();
+#endif
 
   //Power down various bits of hardware to lower power usage  
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -143,7 +145,9 @@ void bg_pwr_down()
   power_timer0_enable();
   power_timer1_enable();
   power_timer2_enable();
+#if defined(__AVR_ATmega1284P__)
   power_timer3_enable();
+#endif
 
   // check button press time and handle state
   unsigned long start = millis();

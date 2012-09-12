@@ -69,11 +69,10 @@ void sd_reader_setup()
   pinMode(sd_detect, INPUT);
   digitalWrite(sd_detect, HIGH);
 
-  //pinMode(led, OUTPUT);     // LED
-  //digitalWrite(led, LOW);  // turn LED on
-
   pinMode(irq_32u4, INPUT); // IRQ
+#if defined(__AVR_ATmega1284P__)
   BG_SD_READER_INTP();     // set pin change interrupt
+#endif
 
   // initialize buffer to zero
   for (int i = 0 ; i < SD_READER_BUF_SIZE ; i++)
@@ -82,6 +81,23 @@ void sd_reader_setup()
   // start in IDLE mode
   Serial.println("SD Reader started on IDLE.");
   sd_reader_state = SD_READER_IDLE;
+
+  // initialize SD card (only needed once, I think)
+  if (!sd_reader_init())
+  {
+    // if it fails, loop forever
+    Serial.println("SD Reader : could not initialize SD card.");
+    while(1)
+      ;
+  }
+
+  // config LED *after* SD card init because it drives LED high
+  bg_led_config();
+  bg_led_off();
+
+  // enable global interrupt
+  sei();
+
 }
 
 void sd_reader_loop()
@@ -113,13 +129,14 @@ uint8_t sd_reader_init()
 
   // power on SD card
   sd_power_on();
+  delay(10);
 
   // initialize card (starts SPI as well)
   status = card.init(SPI_HALF_SPEED, cs_sd);
 
   // change state to active
-  if (status)
-    sd_reader_state = SD_READER_ACTIVE;
+  //if (status)
+    //sd_reader_state = SD_READER_ACTIVE;
     
   return status;
 }
@@ -156,11 +173,14 @@ void spi_tx_byte(uint8_t b)
   SPI.transfer(b);
 }
 
+#if defined(__AVR_ATmega1284P__)
 ISR(BG_32U4_IRQ)
 {
   uint8_t cmd = 0;
   uint32_t arg = 0;
   uint8_t ret = 0;
+
+  //Serial.println("interrupted!");
 
   uint8_t sreg_old = SREG;
   cli(); // disable interrupt
@@ -170,8 +190,8 @@ ISR(BG_32U4_IRQ)
 
   if (pinval)
   {
-    // light LED off
-    digitalWrite(led, HIGH);
+    // light LED on
+    bg_led_on();
 
     // check if power was out
     if (bg_pwr_state == BG_STATE_PWR_DOWN)
@@ -207,7 +227,20 @@ ISR(BG_32U4_IRQ)
     //Serial.println(arg, HEX);
 
     // if SD card is not enabled, initialize
-    if (!sd_reader_init())
+    //if (!sd_reader_init())
+    //{
+      //select_32u4();
+      //spi_tx_byte(R1_WAIT_RETRY); // fail value
+      //unselect_32u4();
+    //}
+
+    if (sd_reader_state == SD_READER_IDLE)
+    {
+      sd_power_on();
+      delay(10);
+      sd_reader_state = SD_READER_ACTIVE;
+    }
+    else if (sd_reader_state == SD_READER_DISABLED)
     {
       select_32u4();
       spi_tx_byte(R1_WAIT_RETRY); // fail value
@@ -262,13 +295,14 @@ ISR(BG_32U4_IRQ)
       }
     }
 
-    // light LED on
-    digitalWrite(led, LOW);
+    // light LED off
+    bg_led_off();
   }
 
   SREG = sreg_old; // enable interrupt
 
 }
+#endif /* __AVR_ATmega1284P__ */
 
 uint8_t sd_reader_read_block(uint32_t arg)
 {
@@ -292,15 +326,21 @@ uint8_t sd_reader_read_block(uint32_t arg)
   spi_tx_byte(0xfe);  // magic number
   spi_delay();
 
-  for (uint16_t i = 0 ; i < 512 ; i++) // send block
+  int slice = 32;
+  for (uint16_t i = 0 ; i < 512 ; i+=slice) // send block
   {
-    spi_tx_byte(buffer[i]);
-    spi_delay();
+    for (int j = i ; j < i + slice ; j++)
+    {
+      spi_tx_byte(buffer[j]);
+      delayMicroseconds(10);
+    }
+    delayMicroseconds(10);
   }
 
   spi_tx_byte(0x12);   // dummy data for CRC
   spi_delay();
   spi_tx_byte(0x34);   // dummy data for CRC
+  spi_delay();
 
   unselect_32u4();
 
@@ -327,7 +367,7 @@ uint8_t sd_reader_write_block(uint32_t arg)
   for (uint16_t i = 0 ; i < 512 ; i++) // send block
   {
     buffer[i] = spi_rx_byte();
-    spi_delay();
+    delayMicroseconds(15);
   }
 
   spi_tx_byte(0xAB);   // receive dummy CRC

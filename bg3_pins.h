@@ -37,6 +37,7 @@ static const int irq_radio = 22;
 // USB controller
 static const int cs_32u4 = 18;
 static const int irq_32u4 = 15;
+#if defined(__AVR_ATmega1284P__)
 // 32U4 IRQ is on pin change interrupt 3
 #define BG_32U4_IRQ PCINT3_vect
 // enable rising edge
@@ -46,6 +47,7 @@ static const int irq_32u4 = 15;
     PCICR |= _BV(PCIE3);    \
   }                         \
   while(0)                      
+#endif
 
 // SD card
 static const int cs_sd = 12;

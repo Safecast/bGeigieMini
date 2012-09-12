@@ -133,7 +133,6 @@
 		
 	/* Function Prototypes: */
 		void SetupHardware(void);
-    void WakeUp(void);
     void GoToSleep(void);
 		void MassStorage_Task(void);
 	
