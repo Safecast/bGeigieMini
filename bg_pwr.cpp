@@ -8,6 +8,13 @@
 #include <avr/interrupt.h>
 #include <sd_reader_int.h>
 
+// main state variable
+int bg_pwr_state = BG_STATE_PWR_DOWN;
+
+// this flag decides if we need to execute
+// wake up and sleep routines.
+int bg_pwr_exec_sleep_routine_flag = 0;
+
 // power switch pin
 static int bg_pwr_switch_pin;
 // interrupt number
@@ -87,18 +94,24 @@ void bg_pwr_loop()
   } 
 
   // as long as the state is down, we turn off
-  while (bg_pwr_state == BG_STATE_PWR_DOWN)
+  while (bg_pwr_state == BG_STATE_PWR_DOWN && !(sd_reader_state == SD_READER_ACTIVE || sd_reader_interrupted))
     bg_pwr_down();
 }
 
+// check if device is running or powered down
+int bg_pwr_running()
+{
+  return (bg_pwr_state == BG_STATE_PWR_UP);
+}
 
 // Shutdown
 void bg_pwr_down()
 {
   // execute sleep routine
-  if (bg_pwr_exec_sleep_routine_flag && bg_pwr_on_sleep != NULL)
+  if (bg_pwr_exec_sleep_routine_flag)
   {
-    bg_pwr_on_sleep();
+    if (bg_pwr_on_sleep != NULL)
+      bg_pwr_on_sleep();
     // the flag is needed because we want to execute sleep
     // routine only when we go from pwr up to pwr down
     bg_pwr_exec_sleep_routine_flag = 0;
@@ -160,10 +173,13 @@ void bg_pwr_down()
   bg_pwr_button_pressed_flag = 0;
 
   // execute wake up routine only if we really woke up
-  if (bg_pwr_state == BG_STATE_PWR_UP && bg_pwr_on_wakeup != NULL)
+  if (bg_pwr_state == BG_STATE_PWR_UP || sd_reader_interrupted)
   {
-    bg_pwr_on_wakeup();
-    bg_pwr_exec_sleep_routine_flag = 1; // next time we sleep execute sleep routine
+    // execute wake up routine if any is defined
+    if (bg_pwr_on_wakeup != NULL)
+      bg_pwr_on_wakeup();
+    // next time we sleep execute sleep routine
+    bg_pwr_exec_sleep_routine_flag = 1; 
   }
 }
 

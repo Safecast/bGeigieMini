@@ -12,11 +12,12 @@
 // State information variable
 #define BG_STATE_PWR_DOWN   0
 #define BG_STATE_PWR_UP     1
-#define BG_STATE_SENSOR     2
-#define BG_STATE_SD_READER  3
-#define BG_STATE_BUTTON_PRESSED 4
-static int bg_pwr_state;
-static int bg_pwr_exec_sleep_routine_flag = 0;
+
+// main state variable
+extern int bg_pwr_state;
+// this flag decides if we need to execute
+// wake up and sleep routines.
+extern int bg_pwr_exec_sleep_routine_flag;
 
 // the press time needed to turn on or off the bGeigie (ms)
 #define BG_PWR_BUTTON_TIME 1000
@@ -31,6 +32,9 @@ static unsigned long bg_pwr_button_pressed_time = 0;
 
 // routine to execute in the loop
 void bg_pwr_loop();
+
+// check if device is running or powered down
+int bg_pwr_running();
 
 // sleep routing 
 void bg_pwr_down();
