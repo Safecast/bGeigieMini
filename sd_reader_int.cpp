@@ -14,9 +14,14 @@ Sd2Card card;
 // 512 block buffer to communicate with SD card
 uint8_t buffer[SD_READER_BUF_SIZE];
 
+uint8_t sd_reader_state = SD_READER_IDLE;
+
+// flag that indicates a 32u4 interrupt occured.
+int sd_reader_interrupted = 0;
+
 // Timeout is 30s
 unsigned long last_interrupt;
-#define SD_READER_TIMEOUT 30000
+#define SD_READER_TIMEOUT 10000
 
 // We only need to know these two commands
 /* CMD17: arg0[31:0]: data address, response R1 */
@@ -91,10 +96,6 @@ void sd_reader_setup()
       ;
   }
 
-  // config LED *after* SD card init because it drives LED high
-  bg_led_config();
-  bg_led_off();
-
   // enable global interrupt
   sei();
 
@@ -103,12 +104,21 @@ void sd_reader_setup()
 void sd_reader_loop()
 {
   unsigned long now = millis();
-  if (sd_reader_state == SD_READER_ACTIVE && now - last_interrupt > SD_READER_TIMEOUT)
+
+  // process the interrupt if there was one
+  if (sd_reader_interrupted)
   {
-    Serial.println("SD reader timeout. Turning off.");
+    // update interrupt timestamp
+    last_interrupt = now;
+    // process tasks
+    sd_reader_process_interrupt();
+  }
+  else if (sd_reader_state == SD_READER_ACTIVE && now - last_interrupt > SD_READER_TIMEOUT)
+  {
     sd_power_off();
     sd_reader_state = SD_READER_IDLE;
   }
+
 }
 
 uint8_t sd_reader_init()
@@ -134,17 +144,14 @@ uint8_t sd_reader_init()
   // initialize card (starts SPI as well)
   status = card.init(SPI_HALF_SPEED, cs_sd);
 
-  // change state to active
-  //if (status)
-    //sd_reader_state = SD_READER_ACTIVE;
-    
   return status;
 }
 
 // disable the SD reader
 uint8_t sd_reader_lock()
 {
-  if (sd_reader_state != SD_READER_ACTIVE)
+  // only lock if no interrupt was detected 
+  if (!sd_reader_interrupted && sd_reader_state != SD_READER_ACTIVE)
   {
     sd_reader_state = SD_READER_DISABLED;
     return 1;
@@ -176,12 +183,6 @@ void spi_tx_byte(uint8_t b)
 #if defined(__AVR_ATmega1284P__)
 ISR(BG_32U4_IRQ)
 {
-  uint8_t cmd = 0;
-  uint32_t arg = 0;
-  uint8_t ret = 0;
-
-  //Serial.println("interrupted!");
-
   uint8_t sreg_old = SREG;
   cli(); // disable interrupt
 
@@ -190,119 +191,117 @@ ISR(BG_32U4_IRQ)
 
   if (pinval)
   {
-    // light LED on
-    bg_led_on();
-
-    // check if power was out
-    if (bg_pwr_state == BG_STATE_PWR_DOWN)
-    {
-      power_spi_enable();
-      power_usart0_enable();
-    }
-
-    // update timestamp
-    last_interrupt = millis();
-
-    // get command from 32u4
-    // This is 5 SPI transfers
-    select_32u4();
-
-    // rx command
-    cmd = spi_rx_byte();
-    spi_delay();
-    // rx argument
-    arg = spi_rx_byte();
-    spi_delay();
-    arg = (arg << 8) + spi_rx_byte();
-    spi_delay();
-    arg = (arg << 8) + spi_rx_byte();
-    spi_delay();
-    arg = (arg << 8) + spi_rx_byte();
-    spi_delay();
-
-    unselect_32u4();
-
-    //Serial.print(cmd, HEX);
-    //Serial.print(" ");
-    //Serial.println(arg, HEX);
-
-    // if SD card is not enabled, initialize
-    //if (!sd_reader_init())
-    //{
-      //select_32u4();
-      //spi_tx_byte(R1_WAIT_RETRY); // fail value
-      //unselect_32u4();
-    //}
-
-    if (sd_reader_state == SD_READER_IDLE)
-    {
-      sd_power_on();
-      delay(10);
-      sd_reader_state = SD_READER_ACTIVE;
-    }
-    else if (sd_reader_state == SD_READER_DISABLED)
-    {
-      select_32u4();
-      spi_tx_byte(R1_WAIT_RETRY); // fail value
-      unselect_32u4();
-    }
-
-#if DEBUG
-    if (cmd == 0x0)
-      break_point();
-#endif
-
-    if (SD_READER_ACTIVE)
-    {
-      // action time!
-      switch (cmd)
-      {
-        case 0x40 | CMD_SD_ON:
-          // if we get here, it is success!
-          select_32u4();
-          spi_tx_byte(R1_SUCCESS);
-          unselect_32u4();
-          break;
-
-        case 0x40 | CMD_SD_OFF:
-          // turn SD card off
-          sd_power_off();
-          sd_reader_state = SD_READER_IDLE;
-          // send response
-          select_32u4();
-          spi_tx_byte(R1_SUCCESS);
-          unselect_32u4();
-          break;
-
-        case 0x40 | CMD_READ_SINGLE_BLOCK:
-          sd_reader_read_block(arg);
-          break;
-
-        case 0x40 | CMD_WRITE_SINGLE_BLOCK:
-          sd_reader_write_block(arg);
-          break;
-
-        case 0x40 | CMD_REQ_INFO:
-          sd_reader_get_info();
-          break;
-        
-        default:
-          // return fail value
-          select_32u4();
-          spi_tx_byte(0xff);
-          unselect_32u4();
-          break;
-      }
-    }
-
-    // light LED off
-    bg_led_off();
+    // raise the 32u4 interrupt flag
+    sd_reader_interrupted = 1;
   }
 
   SREG = sreg_old; // enable interrupt
 
 }
 #endif /* __AVR_ATmega1284P__ */
+
+
+// routine that processes calls from 32u4
+void sd_reader_process_interrupt()
+{
+
+  uint8_t cmd = 0;
+  uint32_t arg = 0;
+  uint8_t ret = 0;
+
+  //Serial.println("interrupted!");
+
+  // update timestamp
+  last_interrupt = millis();
+
+  // get command from 32u4
+  // This is 5 SPI transfers
+  select_32u4();
+
+  // rx command
+  cmd = spi_rx_byte();
+  spi_delay();
+  // rx argument
+  arg = spi_rx_byte();
+  spi_delay();
+  arg = (arg << 8) + spi_rx_byte();
+  spi_delay();
+  arg = (arg << 8) + spi_rx_byte();
+  spi_delay();
+  arg = (arg << 8) + spi_rx_byte();
+  spi_delay();
+
+  unselect_32u4();
+
+  //Serial.print(cmd, HEX);
+  //Serial.print(" ");
+  //Serial.println(arg, HEX);
+
+  if (sd_reader_state == SD_READER_DISABLED)
+  {
+    select_32u4();
+    spi_tx_byte(R1_WAIT_RETRY); // fail value
+    unselect_32u4();
+  }
+  else if (sd_reader_state == SD_READER_IDLE)
+  {
+    sd_power_on();
+    delay(10);
+    sd_reader_state = SD_READER_ACTIVE;
+  }
+
+#if DEBUG
+  if (cmd == 0x0)
+    break_point();
+#endif
+
+  if (SD_READER_ACTIVE)
+  {
+    // action time!
+    switch (cmd)
+    {
+      case 0x40 | CMD_SD_ON:
+        // if we get here, it is success!
+        select_32u4();
+        spi_tx_byte(R1_SUCCESS);
+        unselect_32u4();
+        break;
+
+      case 0x40 | CMD_SD_OFF:
+        // turn SD card off
+        sd_power_off();
+        sd_reader_state = SD_READER_IDLE;
+        // send response
+        select_32u4();
+        spi_tx_byte(R1_SUCCESS);
+        unselect_32u4();
+        break;
+
+      case 0x40 | CMD_READ_SINGLE_BLOCK:
+        sd_reader_read_block(arg);
+        break;
+
+      case 0x40 | CMD_WRITE_SINGLE_BLOCK:
+        sd_reader_write_block(arg);
+        break;
+
+      case 0x40 | CMD_REQ_INFO:
+        sd_reader_get_info();
+        break;
+
+      default:
+        // return fail value
+        select_32u4();
+        spi_tx_byte(0xff);
+        unselect_32u4();
+        break;
+    }
+  }
+
+  // reset interrupt flag after processing
+  sd_reader_interrupted = 0;
+
+}
 
 uint8_t sd_reader_read_block(uint32_t arg)
 {
