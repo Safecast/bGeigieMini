@@ -12,6 +12,10 @@ void setup()
 
   // setup sd reader
   sd_reader_setup();
+
+  // setup led
+  bg_led_config();
+  bg_led_off();
 }
 
 void loop()
