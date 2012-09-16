@@ -102,11 +102,11 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
 int sd_log_writeln(char *filename, char *log_line)
 {
   // if SD reader mode is not idle, fail
-  if (sd_reader_state != SD_READER_IDLE)
-  {
-    sd_log_last_write = 0;
-    return 0;
-  }
+  //if (sd_reader_state != SD_READER_IDLE)
+  //{
+    //sd_log_last_write = 0;
+    //return 0;
+  //}
 
   // test for card presence
   if (sd_log_card_missing())
