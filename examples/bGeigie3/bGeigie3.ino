@@ -67,7 +67,7 @@
 
 // Enable or Disable features
 #define RADIO_ENABLE 1
-#define SD_READER_ENABLE 0
+#define SD_READER_ENABLE 1
 #define BG_PWR_ENABLE 1
 #define CMD_LINE_ENABLE 1
 #define HVPS_SENSING 0
@@ -197,19 +197,23 @@ void loop()
 {
   char tmp[25];
 
+#if BG_PWR_ENABLE
+  // power management loop routine
+  bg_pwr_loop();
+#endif
+
 #if SD_READER_ENABLE
   // First do the SD Reader loop
   sd_reader_loop();
+#endif
 
   // We lock the SD reader if possible when executing the loop
+#if SD_READER_ENABLE && BG_PWR_ENABLE
+  if (bg_pwr_running() && sd_reader_lock())
+#elif SD_READER_ENABLE
   if (sd_reader_lock())
 #endif
   {
-
-#if BG_PWR_ENABLE
-    // power management loop routine
-    bg_pwr_loop();
-#endif
 
 #if CMD_LINE_ENABLE
     // command line loop polling routing
@@ -338,9 +342,17 @@ void loop()
     } /* hwc_available */
 
   } /* sd_reader_lock */
-
+#if SD_READER_ENABLE
+  else
+  {
+    // always restart the pulse counter when in SD reader mode
+    // that way pulse count doesn't accumulate while being in
+    // SD reader mode.
+    hwc.start();
+  }
   // Unlock the SD reader after the loop
   sd_reader_unlock();
+#endif
 
 }
 
