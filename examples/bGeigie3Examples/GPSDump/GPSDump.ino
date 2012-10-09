@@ -30,8 +30,8 @@ void setup() {
   Serial.print(t*10);
   Serial.println("ms.");
 
-  // Issue some commands to the GPS
-  Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
+  // Example of how to issue commands to the GPS module
+  Serial1.println(MTK_SET_NMEA_OUTPUT_ALLDATA);
   Serial1.println(MTK_UPDATE_RATE_1HZ);
   
 }
