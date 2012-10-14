@@ -61,7 +61,7 @@ static const int gps_on_off = 3;
 #define bg_gps_off() digitalWrite(gps_on_off, HIGH)
 static const int gps_1pps = 25; // A1
 // GPS 1PPS is on pin change interrupt 0
-#define BG_1PPS_IRQ PCINT0_vect
+#define BG_1PPS_INT PCINT0_vect
 // enable rising edge
 #define BG_1PPS_INTP() do \
   {                         \

@@ -11,9 +11,7 @@
  #include <GPS.h>
  
 void setup() {                
-  // initialize the digital pin as an output.
-  // Pin 13 has an LED connected on most Arduino boards:  
-  Serial.begin(9600);   // to computer
+  Serial.begin(57600);   // to computer
   Serial1.begin(9600);  // from GPS
 
   pinMode(gps_on_off, OUTPUT);
@@ -33,13 +31,23 @@ void setup() {
   // Example of how to issue commands to the GPS module
   Serial1.println(MTK_SET_NMEA_OUTPUT_ALLDATA);
   Serial1.println(MTK_UPDATE_RATE_1HZ);
+
+  // initialize GPS 1PPS input
+  pinMode(gps_1pps, INPUT);
+
+  // initilize led
+  bg_led_config();
+  bg_led_off();
   
 }
 
 void loop() {
-  while (Serial1.available())
+  // read from serial if available
+  if (Serial1.available())
   {
     char c = Serial1.read();
     Serial.print(c);
   }
+  // output 1PPS on led
+  digitalWrite(led, digitalRead(gps_1pps));
 }

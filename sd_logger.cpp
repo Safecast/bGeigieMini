@@ -94,20 +94,123 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   strcpy_P(tmp, msg_card_ready);
   Serial.print(tmp);
 
+  // turn card off for now
+  // To really turn the SD card off the
+  // first time after initialization, it
+  // seems necessary to pull low all the
+  // SPI lines, wait a little, then CS high.
+  sd_log_pwr_off();
+  digitalWrite(sd_log_cs, LOW);
+  digitalWrite(MISO, LOW);
+  digitalWrite(MOSI, LOW);
+  digitalWrite(SCK, LOW);
+  delay(100);
+  digitalWrite(sd_log_cs, HIGH);
+
   // return success
   return 1;
+}
+
+// SD diagnostic routine
+void sd_log_card_diagnostic()
+{
+  char tmp[BG_ERR_MSG_SIZE];
+
+  // check if Card is inserted
+  strcpy_P(tmp, PSTR("SD inserted,"));
+  Serial.print(tmp);
+  if (sd_log_card_missing())
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+
+  // turn on SD card
+  sd_log_pwr_on();
+
+  // see if the card can be initialized:
+  strcpy_P(tmp, PSTR("SD initialized,"));
+  Serial.print(tmp);
+  if (sd_log_initialized) {
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+
+  // try to open test file
+  static char test_text[] PROGMEM = "This is a test\n";
+  int test_text_n = 15;
+  static char test_file[] PROGMEM = "TEST.TXT";
+  strcpy_P(tmp, PSTR("SD open file,"));
+  Serial.print(tmp);
+  strcpy_P(tmp, test_file);
+  dataFile = SD.open(tmp, FILE_WRITE); // open file in write mode
+  if (dataFile)
+  {
+    dataFile.seek(0);         // move to beginning of file
+    strcpy_P(tmp, test_text);
+    dataFile.print(tmp);      // write test message
+    dataFile.close();         // close file
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+
+  // try to write to test file
+  strcpy_P(tmp, PSTR("SD read write,"));
+  Serial.print(tmp);
+  strcpy_P(tmp, test_file);
+  dataFile = SD.open(tmp, FILE_READ);   // open file in read mode
+  if (dataFile)
+  {
+    dataFile.seek(0);
+    int i = 0;
+    strcpy_P(tmp, test_text);
+    while (i != -1 && i < test_text_n)
+    {
+      if (dataFile.read() != tmp[i])
+        break;
+      i++;
+    }
+    dataFile.close();
+    if (i != test_text_n)
+    {
+      strcpy_P(tmp, PSTR("no"));
+      Serial.println(tmp);
+    }
+    else
+    {
+      strcpy_P(tmp, PSTR("yes"));
+      Serial.println(tmp);
+    }
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+    
+  // turn off SD card
+  sd_log_pwr_off();
+
 }
 
 // write a line to a file in SD card
 int sd_log_writeln(char *filename, char *log_line)
 {
-  // if SD reader mode is not idle, fail
-  //if (sd_reader_state != SD_READER_IDLE)
-  //{
-    //sd_log_last_write = 0;
-    //return 0;
-  //}
-
   // test for card presence
   if (sd_log_card_missing())
   {
@@ -118,6 +221,8 @@ int sd_log_writeln(char *filename, char *log_line)
     sd_log_inserted = 0;
     return 0;
   }
+
+  sd_log_pwr_on();
 
   // start critical bit
   uint8_t sreg_old = SREG;  // save sreg
@@ -142,6 +247,8 @@ int sd_log_writeln(char *filename, char *log_line)
 
   // re-enable interrupts
   SREG = sreg_old;
+
+  sd_log_pwr_off();
 
   return sd_log_last_write;
 }

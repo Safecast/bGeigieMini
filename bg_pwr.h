@@ -33,6 +33,9 @@ static unsigned long bg_pwr_button_pressed_time = 0;
 // routine to execute in the loop
 void bg_pwr_loop();
 
+// set state to off (effectively turns device off
+void bg_pwr_turn_off();
+
 // check if device is running or powered down
 int bg_pwr_running();
 

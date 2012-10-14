@@ -19,6 +19,9 @@ extern int sd_log_last_write;
 /* initialize SD card */
 int sd_log_init(int pin_pwr, int pin_detect, int pin_cs);
 
+/* Run SD card diagnostic */
+void sd_log_card_diagnostic();
+
 /* write a log line to specified file */
 int sd_log_writeln(char *filename, char *log_line);
 

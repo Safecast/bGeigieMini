@@ -98,6 +98,12 @@ void bg_pwr_loop()
     bg_pwr_down();
 }
 
+// set state to off (effectively turns device off
+void bg_pwr_turn_off()
+{
+  bg_pwr_state = BG_STATE_PWR_DOWN;
+}
+
 // check if device is running or powered down
 int bg_pwr_running()
 {

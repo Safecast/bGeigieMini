@@ -7,6 +7,7 @@
 #include <bg_pwr.h>
 
 #include "sd_reader_int.h"
+#include "sd_logger.h"
 
 // SD card object
 Sd2Card card;

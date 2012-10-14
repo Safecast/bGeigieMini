@@ -61,6 +61,8 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+#define BATT_LOWEST_VOLTAGE 3300  // lowest voltage acceptable by power regulator
+
 // Radio options
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define CHANNEL 20            // transmission channel
@@ -71,6 +73,7 @@
 #define BG_PWR_ENABLE 1
 #define CMD_LINE_ENABLE 1
 #define HVPS_SENSING 0
+#define GPS_1PPS_ENABLE 0
 
 
 // Messages and Errors in Flash
@@ -97,8 +100,30 @@ char ext_log[] = ".log";
 char ext_sts[] = ".sts";
  
 // State variables
-int gps_init_acq = 0;
+int rtc_acq = 0;
 int log_created = 0;
+
+// diagnostic variables
+uint8_t diag_radio = 0;
+uint8_t diag_sd = 0;
+uint8_t diag_battery = 0;
+uint8_t diag_environment = 0;
+uint8_t diag_gps = 0;
+
+// a function to initialize all global variables when the device starts
+void global_variables_init()
+{
+  rtc_acq = 0;
+  log_created = 0;
+
+  for (int i = 0 ; i < NX ; i++)
+    shift_reg[i] = 0;
+  reg_index = 0;
+
+  total_count = 0;
+  str_count = 0;
+  geiger_status = VOID;
+}
 
 /* SETUP */
 void setup()
@@ -130,6 +155,12 @@ void setup()
   Serial.print(t*10);
   Serial.println("ms.");
 
+  // Initialize interrupt on GPS 1PPS line
+#if GPS_1PPS_ENABLE  
+  pinMode(gps_1pps, INPUT);
+  BG_1PPS_INTP();
+#endif
+
   // Issue some commands to the GPS
   Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
   Serial1.println(MTK_UPDATE_RATE_1HZ);
@@ -153,10 +184,6 @@ void setup()
   chibiSetChannel(CHANNEL);
 #endif
 
-  // set initial state of Geiger to void
-  geiger_status = VOID;
-  str_count = 0;
-  
   // print free RAM. we should try to maintain about 300 bytes for stack space
   Serial.println(FreeRam());
 
@@ -184,6 +211,12 @@ void setup()
   bg_pwr_init(main_switch, power_up, shutdown);
 #endif
 
+  // initialize all global variables
+  global_variables_init();
+
+  // run all diagnostics
+  diagnostics();
+
   // Starting now!
   Serial.println("Starting now!");
 
@@ -196,6 +229,11 @@ void setup()
 void loop()
 {
   char tmp[25];
+
+  // we check the voltage of the battery and turn
+  // the device off if it lower than the lowest
+  // voltage acceptable by the power regulator (3.3V)
+  check_battery_voltage();
 
 #if BG_PWR_ENABLE
   // power management loop routine
@@ -257,10 +295,16 @@ void loop()
         }
 
 
-        if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
+        // check the RTC is correct
+        // by default, we check that the year is not 1980 (default GPS module year)
+        // obviously this won't work past 2079
+        // to ensure GPS will work in the year 2080, we also condition on fix status
+        // in every year other than xx80, the system starts recording when year is not '80' (i.e. RTC running)
+        // in xx80, it only starts when a fix is acquired.
+        if (rtc_acq == 0 && ( gps_getData()->status[0] == 'A' || strncmp(gps_getData()->datetime.year, "80", 2) != 0) )
         {
           // flag GPS acquired
-          gps_init_acq = 1;
+          rtc_acq = 1;
 
           // Create the filename for that drive
           strcpy(filename, dev_id);
@@ -285,7 +329,7 @@ void loop()
         // updating so wait until its finished and generate timestamp
         line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
         
-        if (gps_init_acq == 0)
+        if (rtc_acq == 0)
         {
           Serial.print("No GPS: ");
           sd_log_last_write = 0;   // because we don't write to SD before GPS lock
@@ -321,7 +365,7 @@ void loop()
         line_len = bg_status_str_gen(line);
 
         // write to SD status file
-        if (gps_init_acq != 0)
+        if (rtc_acq != 0)
         {
           strcpy(filename+8, ext_sts);
           sd_log_writeln(filename, line);
@@ -531,13 +575,14 @@ void power_up()
   // blink
   blink_led(3, 100);
 
+  // turn GPS on and set status to not acquired yet
   bg_gps_on();
   sd_log_pwr_on();
   bg_sensors_on();
-  
-  // set initial state of Geiger to void
-  geiger_status = VOID;
-  str_count = 0;
+
+  // initialize all global variables
+  // set initial states of GPS, log file, Geiger counter, etc.
+  global_variables_init();
   
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_on();
@@ -578,6 +623,35 @@ void shutdown()
   delay(20);
 }
 
+void check_battery_voltage()
+{
+  
+  int batt = 1000*bgs_read_battery(); // mV
+  if (batt < BATT_LOWEST_VOLTAGE)
+  {
+    Serial.println("Battery level too low. Turning off.");
+    bg_pwr_turn_off();
+  }
+}
+
+/**********************/
+/* Diagnostic Routine */
+/**********************/
+
+void diagnostics()
+{
+  // GPS
+
+  // SD
+  sd_log_card_diagnostic();  
+
+  // temperature/humidity
+
+  // battery voltage
+
+  // basic radio operations
+  
+}
 
 /**************************/
 /* command line functions */
@@ -638,6 +712,23 @@ void cmdGetId(int arg_cnt, char **args)
   Serial.print("Device id: ");
   Serial.println(dev_id);
 }
+
+
+/**********************/
+/* GPS 1PPS Interrupt */
+/**********************/
+
+#if GPS_1PPS_ENABLE
+ISR(BG_1PPS_INT)
+{
+  int val = *portInputRegister(digitalPinToPort(gps_1pps)) & digitalPinToBitMask(gps_1pps);
+  if (val)
+  {
+    // make good use of GPS 1PPS here
+    rtc_pulse++;
+  }
+}
+#endif
 
 
 /********/
