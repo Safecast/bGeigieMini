@@ -20,13 +20,10 @@
 #include "sd_logger.h"
 #include "sd_reader_int.h"
 
+#define LINE_MAX_SIZE 100
+
 // Various messages that we store in flash
 #define BG_ERR_MSG_SIZE 40
-static char msg_sd_not_present[] PROGMEM = "SD not inserted.\n";
-static char msg_sd_init[] PROGMEM = "SD init...\n";
-static char msg_card_failure[] PROGMEM = "Card failure...\n";
-static char msg_card_ready[] PROGMEM = "SD card ready\n";
-static char msg_error_log_file_cannot_open[] PROGMEM = "Error: Log file cannot be opened.\n";
 
 /* sd card power */
 int sd_log_pwr;
@@ -35,6 +32,7 @@ int sd_log_pwr;
 int sd_log_detect;
 int sd_log_initialized;
 int sd_log_inserted;
+int sd_log_file_open;
 int sd_log_last_write;
 
 /* sd chip select pin */
@@ -46,8 +44,6 @@ File dataFile;
 // Initialize SD card
 int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
 {
-  char tmp[BG_ERR_MSG_SIZE];
-
   // initialize pins
   sd_log_pwr = pin_pwr;
   pinMode(sd_log_pwr, OUTPUT);
@@ -69,8 +65,6 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   // check if Card is inserted
   if (sd_log_card_missing())
   {
-    strcpy_P(tmp, msg_sd_not_present);
-    Serial.print(tmp);
     return 0;
   }
 
@@ -82,30 +76,14 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
 
   // see if the card can be initialized:
   if (!SD.begin(sd_log_cs)) {
-    strcpy_P(tmp, msg_card_failure);
-    Serial.print(tmp);
     return 0;
   }
 
   // set card as initialized
   sd_log_initialized = 1;
 
-  // output success
-  strcpy_P(tmp, msg_card_ready);
-  Serial.print(tmp);
-
   // turn card off for now
-  // To really turn the SD card off the
-  // first time after initialization, it
-  // seems necessary to pull low all the
-  // SPI lines, wait a little, then CS high.
   sd_log_pwr_off();
-  digitalWrite(sd_log_cs, LOW);
-  digitalWrite(MISO, LOW);
-  digitalWrite(MOSI, LOW);
-  digitalWrite(SCK, LOW);
-  delay(100);
-  digitalWrite(sd_log_cs, HIGH);
 
   // return success
   return 1;
@@ -114,6 +92,7 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
 // SD diagnostic routine
 void sd_log_card_diagnostic()
 {
+  char tmp_file[13];
   char tmp[BG_ERR_MSG_SIZE];
 
   // check if Card is inserted
@@ -130,9 +109,6 @@ void sd_log_card_diagnostic()
     Serial.println(tmp);
   }
 
-  // turn on SD card
-  sd_log_pwr_on();
-
   // see if the card can be initialized:
   strcpy_P(tmp, PSTR("SD initialized,"));
   Serial.print(tmp);
@@ -146,20 +122,36 @@ void sd_log_card_diagnostic()
     Serial.println(tmp);
   }
 
-  // try to open test file
-  static char test_text[] PROGMEM = "This is a test\n";
-  int test_text_n = 15;
-  static char test_file[] PROGMEM = "TEST.TXT";
+  // Test file read/write
+  strcpy_P(tmp_file, PSTR("TEST.TXT"));
+  strcpy_P(tmp, PSTR("This is a test"));
+  sd_log_writeln(tmp_file, tmp);
+
+  // file open
   strcpy_P(tmp, PSTR("SD open file,"));
   Serial.print(tmp);
-  strcpy_P(tmp, test_file);
-  dataFile = SD.open(tmp, FILE_WRITE); // open file in write mode
-  if (dataFile)
+  if (sd_log_file_open)
   {
-    dataFile.seek(0);         // move to beginning of file
-    strcpy_P(tmp, test_text);
-    dataFile.print(tmp);      // write test message
-    dataFile.close();         // close file
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+    // delete test file
+    if (!(SD.remove(tmp_file)))
+    {
+      strcpy_P(tmp, PSTR("SD test : can't remove test file"));
+      Serial.println(tmp);
+    }
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+
+  // SD R/W
+  strcpy_P(tmp, PSTR("SD read write,"));
+  Serial.print(tmp);
+  if (sd_log_last_write)
+  {
     strcpy_P(tmp, PSTR("yes"));
     Serial.println(tmp);
   }
@@ -169,86 +161,76 @@ void sd_log_card_diagnostic()
     Serial.println(tmp);
   }
 
-  // try to write to test file
-  strcpy_P(tmp, PSTR("SD read write,"));
-  Serial.print(tmp);
-  strcpy_P(tmp, test_file);
-  dataFile = SD.open(tmp, FILE_READ);   // open file in read mode
-  if (dataFile)
-  {
-    dataFile.seek(0);
-    int i = 0;
-    strcpy_P(tmp, test_text);
-    while (i != -1 && i < test_text_n)
-    {
-      if (dataFile.read() != tmp[i])
-        break;
-      i++;
-    }
-    dataFile.close();
-    if (i != test_text_n)
-    {
-      strcpy_P(tmp, PSTR("no"));
-      Serial.println(tmp);
-    }
-    else
-    {
-      strcpy_P(tmp, PSTR("yes"));
-      Serial.println(tmp);
-    }
-  }
-  else
-  {
-    strcpy_P(tmp, PSTR("no"));
-    Serial.println(tmp);
-  }
-    
-  // turn off SD card
-  sd_log_pwr_off();
-
 }
 
 // write a line to a file in SD card
 int sd_log_writeln(char *filename, char *log_line)
 {
+  // assume everything fails. Change flag as things succeed.
+  sd_log_inserted = 0;
+  sd_log_file_open = 0;
+  sd_log_last_write = 0;
+
   // test for card presence
   if (sd_log_card_missing())
-  {
-    char tmp[BG_ERR_MSG_SIZE];
-    strcpy_P(tmp, msg_sd_not_present);
-    Serial.print(tmp);
-    sd_log_last_write = 0;
-    sd_log_inserted = 0;
     return 0;
-  }
 
-  sd_log_pwr_on();
-
-  // start critical bit
-  uint8_t sreg_old = SREG;  // save sreg
-  cli();                    // disable global interrupts
+  // SD card was inserted if we get here
+  sd_log_inserted = 1;
 
   // open file
   dataFile = SD.open(filename, FILE_WRITE);
   if (dataFile)
   {
-    dataFile.print(log_line);
-    dataFile.print("\n");
+    // diagnostic variable : could open file (twice actually)
+    sd_log_file_open = 1;
+
+    // Clear interrupts when writing
+    uint8_t sreg_old = SREG;  // save sreg
+    cli();                    // disable global interrupts
+
+    int len = strnlen(log_line, LINE_MAX_SIZE);
+    int nbytes = dataFile.print(log_line);
+    nbytes += dataFile.print('\n');
+
     dataFile.close();
-    sd_log_last_write = 1;
+
+    // re-enable interrupts
+    SREG = sreg_old;
+
+    // verify correct number of bytes was written
+    if (nbytes == len+1)
+    {
+      // Reopen the file in read mode and verify
+      // everything was correctly written
+      dataFile = SD.open(filename, FILE_READ);
+      if (dataFile)
+      {
+        // seek to begining of line
+        dataFile.seek(dataFile.size() - nbytes);
+        int k = 0;
+        // check every character
+        char c;
+        while ((c = dataFile.read()) != '\n' && k < len)
+        {
+          if (c != log_line[k])
+            break;
+          k++;
+        }
+        // k should match line length
+        if (k == len)
+          sd_log_last_write = 1;
+
+        dataFile.close();
+        delay(100);
+      }
+      else
+      {
+        // diagnostic variable : couldn't open file second time
+        sd_log_file_open = 0;
+      }
+    }
   }
-  else
-  {
-    char tmp[BG_ERR_MSG_SIZE];
-    strcpy_P(tmp, msg_error_log_file_cannot_open);
-    Serial.print(tmp);
-    sd_log_last_write = 0;
-  }   
-
-  // re-enable interrupts
-  SREG = sreg_old;
-
-  sd_log_pwr_off();
 
   return sd_log_last_write;
 }

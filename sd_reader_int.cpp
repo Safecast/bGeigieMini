@@ -43,7 +43,7 @@ unsigned long last_interrupt;
 #define R1_FAILURE 0xff
 
 
-void sd_reader_setup()
+int sd_reader_setup()
 {
 #if DEBUG
   configure_break_pin();
@@ -85,20 +85,20 @@ void sd_reader_setup()
     buffer[i] = 0x0;
 
   // start in IDLE mode
-  Serial.println("SD Reader started on IDLE.");
   sd_reader_state = SD_READER_IDLE;
 
   // initialize SD card (only needed once, I think)
   if (!sd_reader_init())
   {
-    // if it fails, loop forever
-    Serial.println("SD Reader : could not initialize SD card.");
-    while(1)
-      ;
+    // return failure status
+    return 0;
   }
 
   // enable global interrupt
   sei();
+
+  // return success
+  return 1;
 
 }
 

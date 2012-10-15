@@ -47,7 +47,7 @@ uint8_t spi_rx_byte();
 void spi_tx_byte(uint8_t b);
 
 // routine to call respectively in setup and loop
-void sd_reader_setup();
+int sd_reader_setup();
 void sd_reader_loop();
 
 // initialize SD card

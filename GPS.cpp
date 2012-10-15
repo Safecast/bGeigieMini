@@ -283,3 +283,92 @@ void parse_datetime()
     memcpy(_gps_data.datetime.year, &_gps_data.date[4], 2);
 }
 
+void gps_diagnostics()
+{
+
+  char msg[20];
+  char tmp[30];
+  char tmp2[30];
+  int timeout = 1000;
+  unsigned long now = millis();
+  unsigned long delay;
+  int n;
+
+  // hot restart GPS to catch init message
+  strcpy_P(tmp, PSTR(MTK_HOT_RESTART));
+  _serial->println(tmp);
+
+
+  // Testing for System Message
+  strcpy_P(tmp, PSTR(MTK_INIT_MSG));
+  now = millis();
+  while (_serial->read() != '$' && millis() - now < timeout)
+    while (!_serial->available() && millis() - now < timeout)
+      ;
+
+  delay = millis() - now;
+
+  strcpy_P(msg, PSTR("GPS type MTK,"));
+  Serial.print(msg);
+
+  if (delay < timeout)
+  {
+    n = _serial->readBytesUntil('*', tmp2, 29);
+    tmp2[n] = 0;
+
+    if (strncmp(tmp+1, tmp2, 14) == 0)
+    {
+      strcpy_P(msg, PSTR("yes"));
+      Serial.println(msg);
+    }
+    else
+    {
+      strcpy_P(msg, PSTR("no"));
+      Serial.println(msg);
+    }
+  }
+  else
+  {
+    strcpy_P(msg, PSTR("timeout"));
+    Serial.println(msg);
+  }
+
+  // Testing for GPS type message
+  strcpy_P(tmp, PSTR(MTK_SYS_MSG));
+  now = millis();
+  while (_serial->read() != '$')
+    while (!_serial->available() && millis() - now < timeout)
+      ;
+
+  delay = millis() - now;
+
+  strcpy_P(msg, PSTR("GPS system startup,"));
+  Serial.print(msg);
+
+  if (delay < timeout)
+  {
+    n = _serial->readBytesUntil('*', tmp2, 29);
+    tmp2[n] = 0;
+
+    if (strncmp(tmp+1, tmp2, 11) == 0)
+    {
+      strcpy_P(msg, PSTR("yes"));
+      Serial.println(msg);
+    }
+    else
+    {
+      strcpy_P(msg, PSTR("no"));
+      Serial.println(msg);
+    }
+  }
+  else
+  {
+    strcpy_P(msg, PSTR("timeout"));
+    Serial.println(msg);
+  }
+
+
+}
+
+
+

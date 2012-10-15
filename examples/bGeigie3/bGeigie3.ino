@@ -65,6 +65,7 @@
 
 // Radio options
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
+#define RX_ADDR_BASE 0x3000   // base for radio address. Add device number to make complete address
 #define CHANNEL 20            // transmission channel
 
 // Enable or Disable features
@@ -75,9 +76,6 @@
 #define HVPS_SENSING 0
 #define GPS_1PPS_ENABLE 0
 
-
-// Messages and Errors in Flash
-static char msg_device_id[] PROGMEM = "Device id: ";
 
 // Geiger rolling and total count
 unsigned long shift_reg[NX] = {0};
@@ -103,12 +101,16 @@ char ext_sts[] = ".sts";
 int rtc_acq = 0;
 int log_created = 0;
 
-// diagnostic variables
-uint8_t diag_radio = 0;
-uint8_t diag_sd = 0;
-uint8_t diag_battery = 0;
-uint8_t diag_environment = 0;
-uint8_t diag_gps = 0;
+// radio variables
+#if RADIO_ENABLE
+uint8_t radio_init_status = 0;
+unsigned int radio_addr = RX_ADDR_BASE;
+#endif
+
+// SD reader variables
+#if SD_READER_ENABLE
+uint8_t sd_reader_init_status = 0;
+#endif
 
 // a function to initialize all global variables when the device starts
 void global_variables_init()
@@ -128,7 +130,7 @@ void global_variables_init()
 /* SETUP */
 void setup()
 {
-  char tmp[25];
+  char tmp[30];
 
   // init led
   bg_led_config();
@@ -136,7 +138,11 @@ void setup()
   
   // init serial
   Serial.begin(57600);
-  Serial.println("Welcome to bGeigie");
+  strcpy_P(tmp, PSTR("*** Welcome to bGeigie ***"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("Version-"));
+  Serial.print(tmp);
+  Serial.println(version);
 
   // initialize GPS using second Serial connection
   Serial1.begin(9600);
@@ -144,16 +150,25 @@ void setup()
   bg_gps_pwr_config();
   bg_gps_on();
 
-  Serial.println("Wait for GPS to start.");
   int t = 0;
-  while(!Serial1.available())
+  while(!Serial1.available() && t < 100)
   {
     delay(10);
     t++;
   }
-  Serial.print("GPS started in less than ");
-  Serial.print(t*10);
-  Serial.println("ms.");
+  strcpy_P(tmp, PSTR("GPS start time,"));
+  Serial.print(tmp);
+  if (t < 100)
+  {
+    Serial.print(t*10);
+    strcpy_P(tmp, PSTR("ms"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("timeout"));
+    Serial.println(tmp);
+  }
 
   // Initialize interrupt on GPS 1PPS line
 #if GPS_1PPS_ENABLE  
@@ -174,18 +189,14 @@ void setup()
   // set device id
   pullDevId();
 
-  strcpy_P(tmp, msg_device_id);
-  Serial.print(tmp);
-  Serial.println(dev_id);
-
 #if RADIO_ENABLE
   // init chibi on channel normally 20
-  chibiInit();
-  chibiSetChannel(CHANNEL);
+  radio_init_status = chibiInit();  // init the radio
+  chibiSetChannel(CHANNEL); // choose the channel
+  radio_addr = getRadioAddr();    // generate radio address based on device id
+  chibiSetShortAddr(radio_addr);  // set the address
+  chibiSleepRadio(1);       // sleep the radio
 #endif
-
-  // print free RAM. we should try to maintain about 300 bytes for stack space
-  Serial.println(FreeRam());
 
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_pwr_config();
@@ -203,7 +214,7 @@ void setup()
 
   // setup the SD reader
 #if SD_READER_ENABLE
-  sd_reader_setup();
+  sd_reader_init_status = sd_reader_setup();
 #endif
 
   // setup power management
@@ -242,7 +253,8 @@ void loop()
 
 #if SD_READER_ENABLE
   // First do the SD Reader loop
-  sd_reader_loop();
+  if (sd_reader_init_status)  // but only if it initialized properly
+    sd_reader_loop();
 #endif
 
   // We lock the SD reader if possible when executing the loop
@@ -315,6 +327,8 @@ void loop()
           // Prepare new log file header
           sprintf(line, "# bGeigie - v%s\n# New log begin", version);
 
+          sd_log_pwr_on();
+
           // write to log file on SD card
           strcpy(filename+8, ext_log);
           sd_log_writeln(filename, line);
@@ -322,6 +336,8 @@ void loop()
           // write to status file as well
           strcpy(filename+8, ext_sts);
           sd_log_writeln(filename, line);
+
+          sd_log_pwr_off();
         }
         
         // generate timestamp. only update the start time if 
@@ -338,15 +354,20 @@ void loop()
         {
           // dump data to SD card
           strcpy(filename+8, ext_log);
+          sd_log_pwr_on();
           sd_log_writeln(filename, line);
+          sd_log_pwr_off();
         }
 
 #if RADIO_ENABLE
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
+        if (radio_init_status)  // but only if it initialized properly
+        {
+          chibiSleepRadio(0);
+          delay(10);
+          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+          chibiSleepRadio(1);
+        }
 #endif
 
         // blink if log written
@@ -368,15 +389,20 @@ void loop()
         if (rtc_acq != 0)
         {
           strcpy(filename+8, ext_sts);
+          sd_log_pwr_on();
           sd_log_writeln(filename, line);
+          sd_log_pwr_off();
         }
 
 #if RADIO_ENABLE
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
+        if (radio_init_status)  // but only if it initialized properly
+        {
+          chibiSleepRadio(0);
+          delay(10);
+          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+          chibiSleepRadio(1);
+        }
   #endif
       
         // show in Serial stream
@@ -460,9 +486,7 @@ byte bg_status_str_gen(char *buf)
 
   // need to compute fractional part separately because sprintf doesn't support it
   t = bgs_read_temperature();
-  tf = (int)((t-(int)t)*100);
   h = bgs_read_humidity();
-  hf = (int)((h-(int)h)*100);
 
   // turn sensors off
   bg_sensors_off();
@@ -563,6 +587,27 @@ void pullDevId()
   sei(); // re-enable all interrupts
 }
 
+/* Set the address for the radio based on device ID */
+unsigned int getRadioAddr()
+{
+  // prefix with two so that it never collides with broadcast address
+  unsigned int a = RX_ADDR_BASE;
+
+  // first digit
+  if (dev_id[0] != 'X')
+    a += (unsigned int)(dev_id[0]-'0') * 0x100;
+
+  // second digit
+  if (dev_id[1] != 'X')
+    a += (unsigned int)(dev_id[1]-'0') * 0x10;
+
+  // third digit
+  if (dev_id[2] != 'X')
+    a += (unsigned int)(dev_id[2]-'0') * 0x1;
+
+  return a;
+}
+
 
 /***********************************/
 /* Power on and shutdown functions */
@@ -640,17 +685,106 @@ void check_battery_voltage()
 
 void diagnostics()
 {
+  char tmp[30];
+
+  strcpy_P(tmp, PSTR("--- Diagnostic START ---"));
+  Serial.println(tmp);
+
+  // Version number
+  strcpy_P(tmp, PSTR("Version,"));
+  Serial.print(tmp);
+  Serial.println(version);
+
+  // Device ID
+  strcpy_P(tmp, PSTR("Device ID,"));
+  Serial.print(tmp);
+  Serial.println(dev_id);
+
+#if RADIO_ENABLE
+  // basic radio operations
+  strcpy_P(tmp, PSTR("Radio initialized,"));
+  Serial.print(tmp);
+  if (radio_init_status)
+  {
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+  chibiSleepRadio(0);
+  strcpy_P(tmp, PSTR("Radio address,"));
+  Serial.print(tmp);
+  Serial.println(chibiGetShortAddr(), HEX);
+  strcpy_P(tmp, PSTR("Radio channel,"));
+  Serial.print(tmp);
+  Serial.println(chibiGetChannel());
+  chibiSleepRadio(1);
+#endif
+
   // GPS
+  gps_diagnostics();
 
-  // SD
+  // SD card
+  sd_log_pwr_on();
   sd_log_card_diagnostic();  
+  sd_log_pwr_off();
 
-  // temperature/humidity
+#if SD_READER_ENABLE
+  // SD reader
+  strcpy_P(tmp, PSTR("SD reader initialized,"));
+  Serial.print(tmp);
+  if (sd_reader_init_status)
+  {
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+#endif
+
+  // turn sensors on
+  bg_sensors_on();
+  delay(100);
+
+  // temperature
+  int t = bgs_read_temperature();
+  strcpy_P(tmp, PSTR("Temperature,"));
+  Serial.print(tmp);
+  Serial.print(t);
+  Serial.println('C');
+  
+  //humidity
+  int h = bgs_read_humidity();
+  strcpy_P(tmp, PSTR("Humidity,"));
+  Serial.print(tmp);
+  Serial.print(h);
+  Serial.println('%');
+
+  // turn sensors on
+  bg_sensors_off();
 
   // battery voltage
+  int batt = 1000*bgs_read_battery(); // mV
+  strcpy_P(tmp, PSTR("Battery voltage,"));
+  Serial.print(tmp);
+  Serial.print(batt);
+  strcpy_P(tmp, PSTR("mV"));
+  Serial.println(tmp);
 
-  // basic radio operations
+  // System free RAM
+  strcpy_P(tmp, PSTR("System free RAM,"));
+  Serial.print(tmp);
+  Serial.print(FreeRam());
+  Serial.println('B');
   
+  strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
+  Serial.println(tmp);
 }
 
 /**************************/
