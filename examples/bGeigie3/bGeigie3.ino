@@ -754,6 +754,7 @@ void diagnostics()
 
   // temperature
   int t = bgs_read_temperature();
+  t = bgs_read_temperature();
   strcpy_P(tmp, PSTR("Temperature,"));
   Serial.print(tmp);
   Serial.print(t);
@@ -761,6 +762,7 @@ void diagnostics()
   
   //humidity
   int h = bgs_read_humidity();
+  h = bgs_read_humidity();
   strcpy_P(tmp, PSTR("Humidity,"));
   Serial.print(tmp);
   Serial.print(h);
@@ -771,6 +773,7 @@ void diagnostics()
 
   // battery voltage
   int batt = 1000*bgs_read_battery(); // mV
+  batt = 1000*bgs_read_battery(); // mV
   strcpy_P(tmp, PSTR("Battery voltage,"));
   Serial.print(tmp);
   Serial.print(batt);
