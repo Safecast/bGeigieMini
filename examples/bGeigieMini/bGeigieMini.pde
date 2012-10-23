@@ -76,6 +76,22 @@ static const int chipSelect = 10;
 static const int radioSelect = A3;
 static const int sdPwr = 4;
 
+// Define macros to turn SD card on and off
+#define sd_on()   digitalWrite(sdPwr, LOW)
+
+#define sd_off()  digitalWrite(sdPwr, HIGH); \
+                  digitalWrite(11, LOW);        \
+                  digitalWrite(12, LOW);        \
+                  digitalWrite(13, LOW);         \
+                  {                               \
+                    uint8_t r = SREG;             \
+                    cli();                        \
+                    digitalWrite(chipSelect, LOW);     \
+                    delay(10);                    \
+                    digitalWrite(chipSelect, HIGH);    \
+                    SREG = r;                     \
+                  }               
+
 // SD card detect and write protect input pins
 static const int sd_cd = 6;
 static const int sd_wp = 7;
@@ -163,16 +179,17 @@ void setup()
   Serial.print(tmp);
   Serial.println(version);
 
+  // disable Radio (chip select)
+  pinMode(radioSelect, OUTPUT);
+  digitalWrite(radioSelect, HIGH);    // disable radio chip select
+  
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(chipSelect, OUTPUT);
   digitalWrite(chipSelect, HIGH);     // disable SD card chip select 
   
-  pinMode(radioSelect, OUTPUT);
-  digitalWrite(radioSelect, HIGH);    // disable radio chip select
-  
-  pinMode(sdPwr, OUTPUT);
-  digitalWrite(sdPwr, LOW);           // turn on SD card power
+  pinMode(sdPwr, OUTPUT); // configure SD card power control pin
+  sd_off();               // turn SD card off for now.
 
 #if ENABLE_DIAGNOSTIC
   // setup analog reference to read battery and boost voltage
@@ -227,6 +244,8 @@ void setup()
   */
   
   // see if the card is present and can be initialized:
+  sd_on();
+  delay(10);
   if (SD.begin(chipSelect))
     SET_STAT(status, SD_STAT);
   if (!CHECK_STAT(status, SD_STAT))
@@ -237,6 +256,7 @@ void setup()
     strcpy_P(tmp, msg3);
     Serial.print(tmp);
   }
+  sd_off();
 
   // set initial state of Geiger to void
   geiger_status = VOID;
@@ -289,6 +309,8 @@ void loop()
       {
         strcpy_P(tmp, msg1);
         Serial.print(tmp);
+        sd_on();
+        delay(10);
         if (SD.begin(chipSelect)) 
           SET_STAT(status, SD_STAT);
         if (CHECK_STAT(status, SD_STAT))
@@ -299,6 +321,7 @@ void loop()
           strcpy_P(tmp, msg3);
           Serial.print(tmp);
         }
+        sd_off();
       }
 
       // obtain the count in the last bin
@@ -344,6 +367,8 @@ void loop()
         strncat(filename, gps_getData()->date, 2);
         // print some comment line to mark beginning of new log
         strcpy(filename+8, ext_log);
+        sd_on();
+        delay(10);
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
@@ -378,6 +403,7 @@ void loop()
           strcpy_P(tmp, msg4);
           Serial.print(tmp);
         }
+        sd_off();
       }
       
       // turn on SD card power and delay a bit to initialize
@@ -403,6 +429,8 @@ void loop()
       {
         // dump data to SD card
         strcpy(filename+8, ext_log);
+        sd_on();
+        delay(10);
         dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
@@ -425,15 +453,6 @@ void loop()
         // Printout line
         Serial.println(line);
 
-#if TX_ENABLED
-        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
-#endif
-
-
 #if ENABLE_DIAGNOSTIC
         // print voltage to BAK file
         int v0 = (int)(1000*read_voltage(pinV0));
@@ -444,10 +463,18 @@ void loop()
 #endif
         
         //turn off sd power        
-        //digitalWrite(sdPwr, HIGH); 
+        sd_off();
+
+#if TX_ENABLED
+        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+#endif
+
       }
     }
-
   }
 }
 
