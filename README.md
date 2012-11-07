@@ -58,9 +58,13 @@ The firmwares for the different devices are given as examples of this library.
 3. Pull low (off) the small switch on the right of the black dual switch.
   ![Switch Setting 32u4](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_32u4.jpg)
 4. In a terminal, go to `SDReader32u4/LowLevelMassStorage+SD`.
-    cd <arduino_libraries_path>/SDReader32u4/LowLevelMassStorage+SD
+
+        cd <arduino_libraries_path>/SDReader32u4/LowLevelMassStorage+SD
+
 5. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
-    make upload
+
+        make upload
+
 6. Pull back up the left small switch. Both switches should be up (on) now.
   ![Switch normal mode](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/normal_setting.jpg)
 
