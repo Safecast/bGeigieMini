@@ -75,6 +75,7 @@
 #define CMD_LINE_ENABLE 1
 #define HVPS_SENSING 0
 #define GPS_1PPS_ENABLE 0
+#define JAPAN_POST 0
 
 
 // Geiger rolling and total count
@@ -327,17 +328,16 @@ void loop()
           // Prepare new log file header
           sprintf(line, "# bGeigie - v%s\n# New log begin", version);
 
-          sd_log_pwr_on();
+          //sd_log_pwr_on();
 
           // write to log file on SD card
           strcpy(filename+8, ext_log);
-          sd_log_writeln(filename, line);
 
           // write to status file as well
           strcpy(filename+8, ext_sts);
           sd_log_writeln(filename, line);
 
-          sd_log_pwr_off();
+          //sd_log_pwr_off();
         }
         
         // generate timestamp. only update the start time if 
@@ -354,9 +354,9 @@ void loop()
         {
           // dump data to SD card
           strcpy(filename+8, ext_log);
-          sd_log_pwr_on();
+          //sd_log_pwr_on();
           sd_log_writeln(filename, line);
-          sd_log_pwr_off();
+          //sd_log_pwr_off();
         }
 
 #if RADIO_ENABLE
@@ -389,9 +389,9 @@ void loop()
         if (rtc_acq != 0)
         {
           strcpy(filename+8, ext_sts);
-          sd_log_pwr_on();
+          //sd_log_pwr_on();
           sd_log_writeln(filename, line);
-          sd_log_pwr_off();
+          //sd_log_pwr_off();
         }
 
 #if RADIO_ENABLE
@@ -433,6 +433,11 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   byte chk;
 
   gps_t *ptr = gps_getData();
+
+#if JAPAN_POST
+  // if for JP, make sure to truncate the GPS coordinates
+  truncate_JP(ptr->lat, ptr->lon);
+#endif
   
   memset(buf, 0, LINE_SZ);
   sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
@@ -620,14 +625,36 @@ void power_up()
   // blink
   blink_led(3, 100);
 
+  pinMode(cs_sd, OUTPUT);
+  digitalWrite(cs_sd, HIGH);
+  pinMode(MOSI, OUTPUT);
+  pinMode(SCK, OUTPUT);
+
+  // flush Serial1 (GPS) before restarting GPS
+  while(Serial1.available())
+    Serial1.read();
+
   // turn GPS on and set status to not acquired yet
   bg_gps_on();
+
+  // turn SD on and initialize
   sd_log_pwr_on();
+  sd_log_init(sd_pwr, sd_detect, cs_sd);
+
+  // initialize sensors
   bg_sensors_on();
+
+#if SD_READER_ENABLE
+  // initialize SD reader
+  sd_reader_setup();
+#endif
 
   // initialize all global variables
   // set initial states of GPS, log file, Geiger counter, etc.
   global_variables_init();
+
+  // run all diagnostics
+  diagnostics();
   
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_on();
@@ -651,6 +678,13 @@ void shutdown()
   bg_hvps_off();
   bg_sensors_off();
   bg_led_off();
+
+  digitalWrite(cs_sd, LOW);
+  pinMode(cs_sd, INPUT);
+  digitalWrite(MOSI, LOW);
+  pinMode(MOSI, INPUT);
+  digitalWrite(SCK, LOW);
+  pinMode(SCK, INPUT);
 
   // we turn all pins to input no pull-up to save power
   // this will also turn off all the peripherals
@@ -685,7 +719,7 @@ void check_battery_voltage()
 
 void diagnostics()
 {
-  char tmp[30];
+  char tmp[50];
 
   strcpy_P(tmp, PSTR("--- Diagnostic START ---"));
   Serial.println(tmp);
@@ -702,6 +736,8 @@ void diagnostics()
 
 #if RADIO_ENABLE
   // basic radio operations
+  strcpy_P(tmp, PSTR("Radio enabled,yes"));
+  Serial.println(tmp);
   strcpy_P(tmp, PSTR("Radio initialized,"));
   Serial.print(tmp);
   if (radio_init_status)
@@ -722,18 +758,23 @@ void diagnostics()
   Serial.print(tmp);
   Serial.println(chibiGetChannel());
   chibiSleepRadio(1);
+#else
+  strcpy_P(tmp, PSTR("Radio enabled,no"));
+  Serial.println(tmp);
 #endif
 
   // GPS
   gps_diagnostics();
 
   // SD card
-  sd_log_pwr_on();
+  //sd_log_pwr_on();
   sd_log_card_diagnostic();  
-  sd_log_pwr_off();
+  //sd_log_pwr_off();
 
 #if SD_READER_ENABLE
   // SD reader
+  strcpy_P(tmp, PSTR("SD reader enabled,yes"));
+  Serial.println(tmp);
   strcpy_P(tmp, PSTR("SD reader initialized,"));
   Serial.print(tmp);
   if (sd_reader_init_status)
@@ -746,6 +787,9 @@ void diagnostics()
     strcpy_P(tmp, PSTR("no"));
     Serial.println(tmp);
   }
+#else
+  strcpy_P(tmp, PSTR("SD reader enabled,no"));
+  Serial.println(tmp);
 #endif
 
   // turn sensors on
@@ -761,8 +805,8 @@ void diagnostics()
   Serial.println('C');
   
   //humidity
-  int h = bgs_read_humidity();
-  h = bgs_read_humidity();
+  int h = bgs_read_humidity();  // %
+  h = bgs_read_humidity();      // read second time to get stable reading
   strcpy_P(tmp, PSTR("Humidity,"));
   Serial.print(tmp);
   Serial.print(h);
@@ -773,18 +817,68 @@ void diagnostics()
 
   // battery voltage
   int batt = 1000*bgs_read_battery(); // mV
-  batt = 1000*bgs_read_battery(); // mV
+  batt = 1000*bgs_read_battery();     // read second time to get stable reading
   strcpy_P(tmp, PSTR("Battery voltage,"));
   Serial.print(tmp);
   Serial.print(batt);
   strcpy_P(tmp, PSTR("mV"));
   Serial.println(tmp);
 
+  // HV sensing
+#if HVPS_SENSING
+  strcpy_P(tmp, PSTR("HV sense enabled,yes"));
+  Serial.println(tmp);
+  // read all sensors
+  int hv = bgs_read_hv();  // V
+  hv = bgs_read_battery(); // read a second time to get rid of bias, or something
+  strcpy_P(tmp, PSTR("High voltage power supply,"));
+  Serial.print(tmp);
+  Serial.print(hv);
+  strcpy_P(tmp, PSTR("V"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("HV sense enabled,no"));
+  Serial.println(tmp);
+#endif
+
   // System free RAM
   strcpy_P(tmp, PSTR("System free RAM,"));
   Serial.print(tmp);
   Serial.print(FreeRam());
   Serial.println('B');
+
+#if BG_PWR_ENABLE
+  strcpy_P(tmp, PSTR("Power management enabled,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("Power management enabled,no"));
+  Serial.println(tmp);
+#endif
+
+#if CMD_LINE_ENABLE
+  strcpy_P(tmp, PSTR("Command line interface enabled,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("Command line interface enabled,no"));
+  Serial.println(tmp);
+#endif
+
+#if GPS_1PPS_ENABLE
+  strcpy_P(tmp, PSTR("GPS 1PPS enabled,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("GPS 1PPS enabled,no"));
+  Serial.println(tmp);
+#endif
+
+#if JAPAN_POST
+  strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
+  Serial.println(tmp);
+#endif
+
   
   strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
   Serial.println(tmp);
@@ -866,6 +960,70 @@ ISR(BG_1PPS_INT)
   }
 }
 #endif
+
+/**********************/
+/* JP truncation code */
+/**********************/
+
+#if JAPAN_POST
+/* 
+ * Truncate the latitude and longitude according to
+ * Japan Post requirements
+ * 
+ * This algorithm truncate the minute
+ * part of the latitude and longitude
+ * in order to rasterize the points on
+ * a 100x100m grid.
+ */
+void truncate_JP(char *lat, char *lon)
+{
+  unsigned long minutes;
+  float lat0;
+  unsigned int lon_trunc;
+
+  /* latitude */
+  // get minutes in one long int
+  minutes =  (unsigned long)(lat[2]-'0')*100000 
+    + (unsigned long)(lat[3]-'0')*10000 
+    + (unsigned long)(lat[5]-'0')*1000 
+    + (unsigned long)(lat[6]-'0')*100 
+    + (unsigned long)(lat[7]-'0')*10 
+    + (unsigned long)(lat[8]-'0');
+  // truncate, for latutude, truncation factor is fixed
+  minutes -= minutes % 546;
+  // get this back in the string
+  lat[2] = '0' + (minutes/100000);
+  lat[3] = '0' + ((minutes%100000)/10000);
+  lat[5] = '0' + ((minutes%10000)/1000);
+  lat[6] = '0' + ((minutes%1000)/100);
+  lat[7] = '0' + ((minutes%100)/10);
+  lat[8] = '0' + (minutes%10);
+
+  // compute the full latitude in radian
+  lat0 = ((float)(lat[0]-'0')*10 + (lat[1]-'0') + (float)minutes/600000.f)/180.*M_PI;
+
+  /* longitude */
+  // get minutes in one long int
+  minutes =  (unsigned long)(lon[3]-'0')*100000 
+    + (unsigned long)(lon[4]-'0')*10000 
+    + (unsigned long)(lon[6]-'0')*1000 
+    + (unsigned long)(lon[7]-'0')*100 
+    + (unsigned long)(lon[8]-'0')*10 
+    + (unsigned long)(lon[9]-'0');
+  // compute truncation factor
+  lon_trunc = (unsigned int)((0.0545674090600784/cos(lat0))*10000.);
+  // truncate
+  minutes -= minutes % lon_trunc;
+  // get this back in the string
+  lon[3] = '0' + (minutes/100000);
+  lon[4] = '0' + ((minutes%100000)/10000);
+  lon[6] = '0' + ((minutes%10000)/1000);
+  lon[7] = '0' + ((minutes%1000)/100);
+  lon[8] = '0' + ((minutes%100)/10);
+  lon[9] = '0' + (minutes%10);
+
+}
+#endif /* JAPAN_POST */
 
 
 /********/
