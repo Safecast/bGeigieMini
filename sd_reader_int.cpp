@@ -246,9 +246,16 @@ void sd_reader_process_interrupt()
   }
   else if (sd_reader_state == SD_READER_IDLE)
   {
-    sd_power_on();
-    delay(10);
-    sd_reader_state = SD_READER_ACTIVE;
+    if (!sd_reader_init())
+    {
+      select_32u4();
+      spi_tx_byte(R1_WAIT_RETRY); // fail value
+      unselect_32u4();
+    }
+    else
+    {
+      sd_reader_state = SD_READER_ACTIVE;
+    }
   }
 
 #if DEBUG
