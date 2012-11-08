@@ -5,7 +5,7 @@
 /* macros to turn on and off SD card */
 extern int sd_log_pwr;  // pwr pin
 #define sd_log_pwr_on()   digitalWrite(sd_log_pwr, LOW);  \
-                          delay(10)
+                          delay(20)
 // To really turn the SD card off the
 // it seems necessary to pull low all the
 // SPI lines, wait a little, then CS high.
@@ -32,6 +32,7 @@ extern int sd_log_detect;
 extern int sd_log_initialized;
 extern int sd_log_inserted;
 extern int sd_log_last_write;
+extern int sd_log_file_open;
 
 /* initialize SD card */
 int sd_log_init(int pin_pwr, int pin_detect, int pin_cs);

@@ -82,9 +82,6 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   // set card as initialized
   sd_log_initialized = 1;
 
-  // turn card off for now
-  sd_log_pwr_off();
-
   // return success
   return 1;
 }
