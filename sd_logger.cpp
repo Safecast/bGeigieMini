@@ -120,8 +120,8 @@ void sd_log_card_diagnostic()
   }
 
   // Test file read/write
-  strcpy_P(tmp_file, PSTR("TEST.TXT"));
-  strcpy_P(tmp, PSTR("This is a test"));
+  strcpy_P(tmp_file, PSTR("BG_TEST.TXT"));
+  strcpy_P(tmp, PSTR("This is a bGeigie test"));
   sd_log_writeln(tmp_file, tmp);
 
   // file open
