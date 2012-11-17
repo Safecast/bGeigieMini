@@ -3,9 +3,9 @@
 #define __VERSION_H__
 
 #if JAPAN_POST
-static const char version[] = "1.3.9jp";
+static const char version[] = "2.0.0jp";
 #else
-static const char version[] = "1.3.9";
+static const char version[] = "2.0.0";
 #endif
 
 #endif /* __VERSION_H__ */

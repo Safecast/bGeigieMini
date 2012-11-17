@@ -29,6 +29,7 @@
 */
 
 #include <SD.h>
+#include <SPI.h>
 #include <chibi.h>
 #include <limits.h>
 #include <EEPROM.h>
@@ -37,10 +38,10 @@
 #include <math.h>
 #include <avr/wdt.h>
 
+#include <sd_logger.h>
+
 #define TIME_INTERVAL 5000
 #define NX 12
-#define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
-#define CHANNEL 20
 #define LED_ENABLED 0
 #define PRINT_BUFSZ 80
 #define AVAILABLE 'A'          // indicates geiger data are ready (available)
@@ -48,29 +49,25 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+// radio options
+#define CHANNEL 20
+#define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
+#define RX_ADDR_BASE 0x2000   // base for radio address. Add device number to make complete address
+
 // compile time options
-#define ENABLE_DIAGNOSTIC 0
+#define DIAGNOSTIC_ENABLE 0
 #define PLUSSHIELD 0
 #define JAPAN_POST 0
-#define TX_ENABLED 1
+#define RADIO_ENABLE 1
 #define GPS_PROGRAMMING 1
 
 // GPS type
 #define GPS_MTK 1
 #define GPS_CANMORE 2
-#define GPS_TYPE GPS_MTK
+#define GPS_TYPE GPS_CANMORE
 
 // make sure to include that after JAPAN_POST is defined
 #include "version.h"
-
-// defines for status bits
-#define SET_STAT(var, pos) var |= pos
-#define UNSET_STAT(var, pos) var &= ~pos
-#define CHECK_STAT(var, pos) (var & pos)
-#define RAD_STAT 1
-#define GPS_STAT 2
-#define SD_STAT 4
-#define WR_STAT 8
 
 static const int chipSelect = 10;
 static const int radioSelect = A3;
@@ -80,7 +77,7 @@ static const int sdPwr = 4;
 static const int sd_cd = 6;
 static const int sd_wp = 7;
 
-#if ENABLE_DIAGNOSTIC
+#if DIAGNOSTIC_ENABLE
 // We read voltage on analog pins 0 and 1
 static const int pinV0 = A0;
 static const int pinV1 = A1;
@@ -97,17 +94,8 @@ unsigned long total_count = 0;
 int str_count = 0;
 char geiger_status = VOID;
 
-// This is the data file object that we'll use to access the data file
-File dataFile; 
-
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
-
-static char msg1[] PROGMEM = "SD init...\n";
-static char msg2[] PROGMEM = "Card failure...\n";
-static char msg3[] PROGMEM = "Card initialized\n";
-static char msg4[] PROGMEM = "Error: Log file cannot be opened.\n";
-static char msg5[] PROGMEM = "Device Id: ";
 
 char filename[13];      // placeholder for filename
 char hdr[6] = "BMRDD";  // header for sentence
@@ -115,24 +103,24 @@ char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
 char ext_bak[] = ".bak";
 
-static char fileHeader[] PROGMEM = "# NEW LOG\n# firmware=";
+#if RADIO_ENABLE
+uint8_t radio_init_status = 0;
+#endif
 
-
-// Status vector
-// 8bits
-// 7: Reserved
-// 6: Reserved
-// 5: Reserved
-// 4: Reserved
-// 3: last write to SD card successful
-// 2: SD card operational
-// 1: GPS device operational
-// 0: Radiation averaging status
-static byte status = 0;
- 
-// State variables
-int gps_init_acq = 0;
-int log_created = 0;
+// RTC acquisition state variable.
+int rtc_acq = 0;
+// This is to compare the year we get from the GPS
+// and determine if at least the time has been acquired.
+// We do that by comparing to the year default value
+// that is hardcoded in the GPS module. This value is
+// model dependent.
+#if GPS_TYPE == GPS_MTK
+  static char *rtc_year_cmp = "80";
+#elif GPS_TYPE == GPS_CANMORE
+  static char *rtc_year_cmp = "06";
+#else
+  static char *rtc_year_cmp = "00";
+#endif
 
 /**************************************************************************/
 /*!
@@ -158,11 +146,6 @@ void setup()
   gps_program_settings();
 #endif
 
-  // print header to serial
-  strcpy_P(tmp, fileHeader);
-  Serial.print(tmp);
-  Serial.println(version);
-
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(chipSelect, OUTPUT);
@@ -174,7 +157,7 @@ void setup()
   pinMode(sdPwr, OUTPUT);
   digitalWrite(sdPwr, LOW);           // turn on SD card power
 
-#if ENABLE_DIAGNOSTIC
+#if DIAGNOSTIC_ENABLE
   // setup analog reference to read battery and boost voltage
   analogReference(INTERNAL);
 #endif
@@ -196,55 +179,24 @@ void setup()
   // set device id
   pullDevId();
 
-  strcpy_P(tmp, msg5);
-  Serial.print(tmp);
-  Serial.println(dev_id);
-
-  // print free RAM. we should try to maintain about 300 bytes for stack space
-  Serial.println(FreeRam());
-
-#if TX_ENABLED
+#if RADIO_ENABLE
   // init chibi on channel normally 20
-  chibiInit();
+  radio_init_status = chibiInit();
   chibiSetChannel(CHANNEL);
   unsigned int addr = getRadioAddr();
-  Serial.print("Addr: 0x");
-  Serial.println(addr, HEX);
   chibiSetShortAddr(addr);
 #endif
 
-  strcpy_P(tmp, msg1);
-  Serial.print(tmp);
-
-  // setup card detect and write protect
-  /*
-  pinMode(sd_cd, INPUT);
-  pinMode(sd_wp, INPUT);
-  Serial.print("Card detect = ");
-  Serial.println(digitalRead(sd_cd));
-  Serial.print("Write protect = ");
-  Serial.println(digitalRead(sd_wp));
-  */
-  
-  // see if the card is present and can be initialized:
-  if (SD.begin(chipSelect))
-    SET_STAT(status, SD_STAT);
-  if (!CHECK_STAT(status, SD_STAT))
-  {
-    strcpy_P(tmp, msg2);
-    Serial.println(tmp);
-  } else {
-    strcpy_P(tmp, msg3);
-    Serial.print(tmp);
-  }
+  // initialize SD card
+  sd_log_init(sdPwr, sd_cd, chipSelect);
 
   // set initial state of Geiger to void
   geiger_status = VOID;
   str_count = 0;
-  
-  // print free RAM. we should try to maintain about 300 bytes for stack space
-  Serial.println(FreeRam());
 
+  // Run the diagnostic routine
+  diagnostics();
+  
   // And now Start the Pulse Counter!
   interruptCounterReset();
 
@@ -283,24 +235,6 @@ void loop()
       unsigned long cpm=0, cpb=0;
       byte line_len;
 
-      // Check the SD card status and try to start it
-      // if it failed previously
-      if (!CHECK_STAT(status, SD_STAT))
-      {
-        strcpy_P(tmp, msg1);
-        Serial.print(tmp);
-        if (SD.begin(chipSelect)) 
-          SET_STAT(status, SD_STAT);
-        if (CHECK_STAT(status, SD_STAT))
-        {
-          strcpy_P(tmp, msg2);
-          Serial.print(tmp);
-        } else {
-          strcpy_P(tmp, msg3);
-          Serial.print(tmp);
-        }
-      }
-
       // obtain the count in the last bin
       cpb = interruptCounterCount();
 
@@ -333,141 +267,86 @@ void loop()
 
       line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
-      if (gps_init_acq == 0 && gps_getData()->status[0] == AVAILABLE)
+      if (rtc_acq == 0 && ( gps_getData()->status[0] == AVAILABLE 
+          || strncmp(gps_getData()->datetime.year, rtc_year_cmp, 2) != 0) )
       {
         // flag GPS acquired
-        gps_init_acq = 1;
+        rtc_acq = 1;
         // Create the filename for that drive
         strcpy(filename, dev_id);
         strcat(filename, "-");
         strncat(filename, gps_getData()->date+2, 2);
         strncat(filename, gps_getData()->date, 2);
-        // print some comment line to mark beginning of new log
         strcpy(filename+8, ext_log);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          Serial.print("Filename: ");
-          Serial.println(filename);
-          dataFile.print("\n");
-          strcpy_P(tmp, fileHeader);
-          dataFile.print(tmp);
-          dataFile.println(version);
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }
+
+        // write the header and options to the new file
+        writeHeader2SD(filename);
+
+#if DIAGNOSTIC_ENABLE
         // write to backup file as well
         strcpy(filename+8, ext_bak);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print("\n");
-          strcpy_P(tmp, fileHeader);
-          dataFile.print(tmp);
-          dataFile.println(version);
-          dataFile.close();
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }
+
+        // write the header and options to the new file
+        writeHeader2SD(filename);
+
+#endif
       }
       
-      // turn on SD card power and delay a bit to initialize
-      //digitalWrite(sdPwr, LOW);
-      //delay(10);
-      
-      // init the SD card see if the card is present and can be initialized:
-      //while (!SD.begin(chipSelect));
-
-      if (gps_init_acq == 0)
+      if (rtc_acq == 0)
       {
-        Serial.print("No GPS: ");
+        Serial.print("No RTC: ");
         Serial.println(line);
-#if TX_ENABLED
+#if RADIO_ENABLE
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
+        if (radio_init_status)
+        {
+          chibiSleepRadio(0);
+          delay(10);
+          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+          chibiSleepRadio(1);
+        }
 #endif
       }
       else
       {
         // dump data to SD card
         strcpy(filename+8, ext_log);
-        dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-          dataFile.print(line);
-          dataFile.print("\n");
+        sd_log_writeln(filename, line);
 
-          dataFile.close();
-
-        }
-        else
-        {
-          char tmp[40];
-          strcpy_P(tmp, msg4);
-          Serial.print(tmp);
-        }   
-        
+#if DIAGNOSTIC_ENABLE
         // write to backup file as well
-        write_to_file(ext_bak, line);
+        strcpy(filename+8, ext_bak);
+        sd_log_writeln(filename, line);
+#endif
 
         // Printout line
         Serial.println(line);
 
-#if TX_ENABLED
+#if RADIO_ENABLE
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        chibiSleepRadio(0);
-        delay(10);
-        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-        chibiSleepRadio(1);
+        if (radio_init_status)
+        {
+          chibiSleepRadio(0);
+          delay(10);
+          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+          chibiSleepRadio(1);
+        }
 #endif
 
 
-#if ENABLE_DIAGNOSTIC
+#if DIAGNOSTIC_ENABLE
         // print voltage to BAK file
         int v0 = (int)(1000*read_voltage(pinV0));
         int v1 = (int)(1000*read_voltage(pinV1));
-        sprintf(line, "#%d,%d", v0, v1);
-        write_to_file(ext_bak, line);
+        sprintf_P(line, PSTR("$VOLTAGE,batt=%d,boost=%d"), v0, v1);
+        strcpy(filename+8, ext_bak);
+        sd_log_writeln(filename, line);
         Serial.println(line);
 #endif
         
-        //turn off sd power        
-        //digitalWrite(sdPwr, HIGH); 
       }
     }
 
-  }
-}
-
-/* write a line to filename (global variable) with given extension to SD card */
-void write_to_file(char *ext, char *line)
-{
-  // write to backup file as well
-  strcpy(filename+8, ext);
-  dataFile = SD.open(filename, FILE_WRITE);
-  if (dataFile)
-  {
-    dataFile.print(line);
-    dataFile.print("\n");
-    dataFile.close();
-  }
-  else
-  {
-    char tmp[40];
-    strcpy_P(tmp, msg4);
-    Serial.print(tmp);
   }
 }
 
@@ -572,7 +451,7 @@ void pullDevId()
 unsigned int getRadioAddr()
 {
   // prefix with two so that it never collides with broadcast address
-  unsigned int addr = 0x2000;
+  unsigned int addr = RX_ADDR_BASE;
 
   // first digit
   if (dev_id[0] != 'X')
@@ -588,6 +467,204 @@ unsigned int getRadioAddr()
 
   return addr;
 }
+
+/*************************/
+/* Write Options to File */
+/*************************/
+
+void writeHeader2SD(char *filename)
+{
+  char tmp[50];
+
+  strcpy_P(tmp, PSTR("# Welcome to Safecast's bGeigie System"));
+  strcat(tmp, version);
+  sd_log_writeln(filename, tmp);
+
+  strcpy_P(tmp, PSTR("# Version,"));
+  strcat(tmp, version);
+  sd_log_writeln(filename, tmp);
+
+#if GPS_TYPE == GPS_CANMORE
+  strcpy_P(tmp, PSTR("# GPS type,Canmore"));
+#elif GPS_TYPE == GPS_MTK
+  strcpy_P(tmp, PSTR("# GPS type,MTK"));
+#else
+  strcpy_P(tmp, PSTR("# GPS type,unknown"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if GPS_PROGRAMMING
+  strcpy_P(tmp, PSTR("# GPS programming,yes"));
+#else
+  strcpy_P(tmp, PSTR("# GPS programming,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+  
+#if DIAGNOSTIC_ENABLE
+  strcpy_P(tmp, PSTR("# Running diagnostic,yes"));
+  sd_log_writeln(filename, tmp);
+
+  // battery voltage
+  int v0 = (int)(1000*read_voltage(pinV0));
+  v0 = (int)(1000*read_voltage(pinV0)); // read 2nd time for stable value
+  sprintf_P(tmp, PSTR("# Battery voltage,%dmV"), v0);
+  sd_log_writeln(filename, tmp);
+
+  // boost voltage
+  int v1 = (int)(1000*read_voltage(pinV1));
+  v1 = (int)(1000*read_voltage(pinV1)); // read 2nd time for stable value
+  sprintf_P(tmp, PSTR("# Supply voltage,%dmV"), v0);
+  sd_log_writeln(filename, tmp);
+#else
+  strcpy_P(tmp, PSTR("# Running diagnostic,no"));
+  sd_log_writeln(filename, tmp);
+#endif
+
+  // System free RAM
+  sprintf_P(tmp, PSTR("# System free RAM,%dB"), FreeRam());
+  sd_log_writeln(filename, tmp);
+
+#if JAPAN_POST
+  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
+  sd_log_writeln(filename, tmp);
+#else
+  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,no"));
+  sd_log_writeln(filename, tmp);
+#endif
+
+#if PLUSSHIELD
+  strcpy_P(tmp, PSTR("# PlusShield,yes"));
+  sd_log_writeln(filename, tmp);
+#else
+  strcpy_P(tmp, PSTR("# PlusShield,no"));
+  sd_log_writeln(filename, tmp);
+#endif
+}
+
+/**********************/
+/* Diagnostic Routine */
+/**********************/
+
+void diagnostics()
+{
+  char tmp[50];
+
+  strcpy_P(tmp, PSTR("--- Diagnostic START ---"));
+  Serial.println(tmp);
+
+  // Version number
+  strcpy_P(tmp, PSTR("Version,"));
+  Serial.print(tmp);
+  Serial.println(version);
+
+  // Device ID
+  strcpy_P(tmp, PSTR("Device ID,"));
+  Serial.print(tmp);
+  Serial.println(dev_id);
+
+  // SD card
+  sd_log_card_diagnostic();  
+
+#if RADIO_ENABLE
+  // basic radio operations
+  strcpy_P(tmp, PSTR("Radio enabled,yes"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("Radio initialized,"));
+  Serial.print(tmp);
+  if (radio_init_status)
+  {
+    strcpy_P(tmp, PSTR("yes"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("no"));
+    Serial.println(tmp);
+  }
+  chibiSleepRadio(0);
+  strcpy_P(tmp, PSTR("Radio address,"));
+  Serial.print(tmp);
+  Serial.println(chibiGetShortAddr(), HEX);
+  strcpy_P(tmp, PSTR("Radio channel,"));
+  Serial.print(tmp);
+  Serial.println(chibiGetChannel());
+  chibiSleepRadio(1);
+#else
+  strcpy_P(tmp, PSTR("Radio enabled,no"));
+  Serial.println(tmp);
+#endif
+
+#if GPS_TYPE == GPS_CANMORE
+  strcpy_P(tmp, PSTR("GPS type,Canmore"));
+  Serial.println(tmp);
+#elif GPS_TYPE == GPS_MTK
+  gps_diagnostics();
+#else
+  strcpy_P(tmp, PSTR("GPS type,unknown"));
+  Serial.println(tmp);
+#endif
+
+  strcpy_P(tmp, PSTR("GPS programming,"));
+  Serial.print(tmp);
+#if GPS_PROGRAMMING
+  strcpy_P(tmp, PSTR("yes"));
+#else
+  strcpy_P(tmp, PSTR("no"));
+#endif
+  Serial.println(tmp);
+
+#if DIAGNOSTIC_ENABLE
+  strcpy_P(tmp, PSTR("Running diagnostic,yes"));
+  Serial.println(tmp);
+
+  // battery voltage
+  int v0 = (int)(1000*read_voltage(pinV0));
+  v0 = (int)(1000*read_voltage(pinV0)); // read 2nd time for stable value
+  strcpy_P(tmp, PSTR("Battery voltage,"));
+  Serial.print(tmp);
+  Serial.print(v0);
+  strcpy_P(tmp, PSTR("mV"));
+  Serial.println(tmp);
+
+  // boost voltage
+  int v1 = (int)(1000*read_voltage(pinV1));
+  v1 = (int)(1000*read_voltage(pinV1)); // read 2nd time for stable value
+  strcpy_P(tmp, PSTR("Supply voltage,"));
+  Serial.print(tmp);
+  Serial.print(v1);
+  strcpy_P(tmp, PSTR("mV"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("Running diagnostic,no"));
+  Serial.println(tmp);
+#endif
+
+  // System free RAM
+  strcpy_P(tmp, PSTR("System free RAM,"));
+  Serial.print(tmp);
+  Serial.print(FreeRam());
+  Serial.println('B');
+
+#if JAPAN_POST
+  strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
+  Serial.println(tmp);
+#endif
+
+#if PLUSSHIELD
+  strcpy_P(tmp, PSTR("PlusShield,yes"));
+  Serial.println(tmp);
+#else
+  strcpy_P(tmp, PSTR("PlusShield,no"));
+  Serial.println(tmp);
+#endif
+  
+  strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
+  Serial.println(tmp);
+}
+
 
 #if JAPAN_POST
 /* 
@@ -650,7 +727,7 @@ void truncate_JP(char *lat, char *lon)
 #endif /* JAPAN_POST */
 
 
-#if ENABLE_DIAGNOSTIC
+#if DIAGNOSTIC_ENABLE
 float read_voltage(int pin)
 {
   return 1.1*analogRead(pin)/1023. * 10.1;
