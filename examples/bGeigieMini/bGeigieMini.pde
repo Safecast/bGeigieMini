@@ -54,6 +54,11 @@
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
 #define RX_ADDR_BASE 0x2000   // base for radio address. Add device number to make complete address
 
+// Supply voltage control
+// does not write to SD card when supply voltage
+// is lower than this value (in mV).
+#define VCC_LOW_LIMIT 4750
+
 // compile time options
 #define DIAGNOSTIC_ENABLE 1
 #define VOLTAGE_SENSE_ENABLE 0
@@ -279,6 +284,11 @@ void loop()
       }
 #endif
 
+#if VOLTAGE_SENSE_ENABLE
+      // check the supply voltage before writing to SD card
+      int vcc = (int)(1000*read_voltage(pinV1));
+#endif
+
 #if GPS_TYPE == GPS_MTK
       if (rtc_acq == 0 && ( gps_getData()->status[0] == AVAILABLE 
           || strncmp(gps_getData()->datetime.year, rtc_year_cmp, 2) != 0) )
@@ -288,23 +298,32 @@ void loop()
       {
         // flag GPS acquired
         rtc_acq = 1;
-        // Create the filename for that drive
-        strcpy(filename, dev_id);
-        strcat(filename, "-");
-        strncat(filename, gps_getData()->date+2, 2);
-        strncat(filename, gps_getData()->date, 2);
-        strcpy(filename+8, ext_log);
 
-        // write the header and options to the new file
-        writeHeader2SD(filename);
+#if VOLTAGE_SENSE_ENABLE
+        if (vcc > VCC_LOW_LIMIT)  // beginning of low VCC if statement
+        {
+#endif
+          // Create the filename for that drive
+          strcpy(filename, dev_id);
+          strcat(filename, "-");
+          strncat(filename, gps_getData()->date+2, 2);
+          strncat(filename, gps_getData()->date, 2);
+          strcpy(filename+8, ext_log);
+
+          // write the header and options to the new file
+          sd_log_init(sdPwr, sd_cd, chipSelect);
+          writeHeader2SD(filename);
 
 #if DIAGNOSTIC_ENABLE
-        // write to backup file as well
-        strcpy(filename+8, ext_bak);
+          // write to backup file as well
+          strcpy(filename+8, ext_bak);
 
-        // write the header and options to the new file
-        sd_log_init(sdPwr, sd_cd, chipSelect);
-        writeHeader2SD(filename);
+          // write the header and options to the new file
+          writeHeader2SD(filename);
+#endif
+
+#if VOLTAGE_SENSE_ENABLE
+        } // end of low VCC if statement
 #endif
       }
       
@@ -314,7 +333,11 @@ void loop()
       Serial.println(line);
 
       // Once the time has been acquired, save to file
+#if VOLTAGE_SENSE_ENABLE
+      if (rtc_acq != 0 && vcc > VCC_LOW_LIMIT)
+#else
       if (rtc_acq != 0)
+#endif
       {
         // dump data to SD card
         sd_log_init(sdPwr, sd_cd, chipSelect);
@@ -328,14 +351,18 @@ void loop()
       Serial.println(line);
 
 #if DIAGNOSTIC_ENABLE
+#if VOLTAGE_SENSE_ENABLE
+      if (rtc_acq != 0 && vcc > VCC_LOW_LIMIT)
+#else
       if (rtc_acq != 0)
+#endif
       {
         // write to backup file as well
         sd_log_init(sdPwr, sd_cd, chipSelect);
         strcpy(filename+8, ext_bak);
         sd_log_writeln(filename, line);
       }
-#endif
+#endif // DIAGNOSTIC_ENABLE
 
 #if RADIO_ENABLE
       // send out wirelessly the diagnostic sentence
