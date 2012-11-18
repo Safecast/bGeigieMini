@@ -55,7 +55,8 @@
 #define RX_ADDR_BASE 0x2000   // base for radio address. Add device number to make complete address
 
 // compile time options
-#define DIAGNOSTIC_ENABLE 0
+#define DIAGNOSTIC_ENABLE 1
+#define VOLTAGE_SENSE_ENABLE 0
 #define PLUSSHIELD 0
 #define JAPAN_POST 0
 #define RADIO_ENABLE 1
@@ -64,7 +65,7 @@
 // GPS type
 #define GPS_MTK 1
 #define GPS_CANMORE 2
-#define GPS_TYPE GPS_CANMORE
+#define GPS_TYPE GPS_MTK
 
 // make sure to include that after JAPAN_POST is defined
 #include "version.h"
@@ -77,7 +78,7 @@ static const int sdPwr = 4;
 static const int sd_cd = 6;
 static const int sd_wp = 7;
 
-#if DIAGNOSTIC_ENABLE
+#if VOLTAGE_SENSE_ENABLE
 // We read voltage on analog pins 0 and 1
 static const int pinV0 = A0;
 static const int pinV1 = A1;
@@ -99,9 +100,10 @@ static char line[LINE_SZ];
 
 char filename[13];      // placeholder for filename
 char hdr[6] = "BMRDD";  // header for sentence
+char hdr_status[6] = "BMSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];  // device id
 char ext_log[] = ".log";
-char ext_bak[] = ".bak";
+char ext_bak[] = ".sts";
 
 #if RADIO_ENABLE
 uint8_t radio_init_status = 0;
@@ -113,13 +115,10 @@ int rtc_acq = 0;
 // and determine if at least the time has been acquired.
 // We do that by comparing to the year default value
 // that is hardcoded in the GPS module. This value is
-// model dependent.
+// model dependent. So far, it works only for the MTK3339
+// that actually do have an RTC onboard.
 #if GPS_TYPE == GPS_MTK
   static char *rtc_year_cmp = "80";
-#elif GPS_TYPE == GPS_CANMORE
-  static char *rtc_year_cmp = "06";
-#else
-  static char *rtc_year_cmp = "00";
 #endif
 
 /**************************************************************************/
@@ -157,7 +156,7 @@ void setup()
   pinMode(sdPwr, OUTPUT);
   digitalWrite(sdPwr, LOW);           // turn on SD card power
 
-#if DIAGNOSTIC_ENABLE
+#if VOLTAGE_SENSE_ENABLE
   // setup analog reference to read battery and boost voltage
   analogReference(INTERNAL);
 #endif
@@ -185,6 +184,7 @@ void setup()
   chibiSetChannel(CHANNEL);
   unsigned int addr = getRadioAddr();
   chibiSetShortAddr(addr);
+  chibiSleepRadio(1);
 #endif
 
   // initialize SD card
@@ -265,10 +265,26 @@ void loop()
       // updating so wait until its finished and generate timestamp
       memset(line, 0, LINE_SZ);
 
+      // generate log sentence
       line_len = gps_gen_timestamp(line, shift_reg[reg_index], cpm, cpb);
 
+#if RADIO_ENABLE
+      // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
+      if (radio_init_status)
+      {
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
+      }
+#endif
+
+#if GPS_TYPE == GPS_MTK
       if (rtc_acq == 0 && ( gps_getData()->status[0] == AVAILABLE 
           || strncmp(gps_getData()->datetime.year, rtc_year_cmp, 2) != 0) )
+#else
+      if (rtc_acq == 0 && gps_getData()->status[0] == AVAILABLE)
+#endif
       {
         // flag GPS acquired
         rtc_acq = 1;
@@ -287,64 +303,51 @@ void loop()
         strcpy(filename+8, ext_bak);
 
         // write the header and options to the new file
+        sd_log_init(sdPwr, sd_cd, chipSelect);
         writeHeader2SD(filename);
-
 #endif
       }
       
+      // Printout line
       if (rtc_acq == 0)
-      {
-        Serial.print("No RTC: ");
-        Serial.println(line);
-#if RADIO_ENABLE
-        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        if (radio_init_status)
-        {
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-        }
-#endif
-      }
-      else
+        Serial.print("No RTC: "); // add foot note here :)
+      Serial.println(line);
+
+      // Once the time has been acquired, save to file
+      if (rtc_acq != 0)
       {
         // dump data to SD card
+        sd_log_init(sdPwr, sd_cd, chipSelect);
         strcpy(filename+8, ext_log);
         sd_log_writeln(filename, line);
 
+      }
+
+      // Generate a diagnostic sentence
+      bg_status_str_gen(line);
+      Serial.println(line);
+
 #if DIAGNOSTIC_ENABLE
+      if (rtc_acq != 0)
+      {
         // write to backup file as well
+        sd_log_init(sdPwr, sd_cd, chipSelect);
         strcpy(filename+8, ext_bak);
         sd_log_writeln(filename, line);
+      }
 #endif
-
-        // Printout line
-        Serial.println(line);
 
 #if RADIO_ENABLE
-        // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
-        if (radio_init_status)
-        {
-          chibiSleepRadio(0);
-          delay(10);
-          chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
-          chibiSleepRadio(1);
-        }
-#endif
-
-
-#if DIAGNOSTIC_ENABLE
-        // print voltage to BAK file
-        int v0 = (int)(1000*read_voltage(pinV0));
-        int v1 = (int)(1000*read_voltage(pinV1));
-        sprintf_P(line, PSTR("$VOLTAGE,batt=%d,boost=%d"), v0, v1);
-        strcpy(filename+8, ext_bak);
-        sd_log_writeln(filename, line);
-        Serial.println(line);
-#endif
-        
+      // send out wirelessly the diagnostic sentence
+      if (radio_init_status)
+      {
+        chibiSleepRadio(0);
+        delay(10);
+        chibiTx(DEST_ADDR, (byte *)line, LINE_SZ);
+        chibiSleepRadio(1);
       }
+#endif
+
     }
 
   }
@@ -393,6 +396,62 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
 
    return len;
 }
+
+#if DIAGNOSTIC_ENABLE
+/* create Status log line */
+byte bg_status_str_gen(char *buf)
+{
+  byte len;
+  byte chk;
+
+  // get GPS data
+  gps_t *ptr = gps_getData();
+
+  // create string
+  memset(buf, 0, LINE_SZ);
+
+#if VOLTAGE_SENSE_ENABLE
+  int batt = (int)1000*read_voltage(pinV0); // battery voltage [mV]
+  int vcc = (int)1000*read_voltage(pinV1);  // supply voltage  [mV]
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d"),  \
+              hdr_status, \
+              dev_id, \
+              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+              ptr->lat, ptr->lat_hem, \
+              ptr->lon, ptr->lon_hem, \
+              version, \
+              batt, \
+              vcc, \
+              sd_log_inserted, sd_log_initialized, sd_log_last_write);
+#else
+  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,,,%d,%d,%d"),  \
+              hdr_status, \
+              dev_id, \
+              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+              ptr->lat, ptr->lat_hem, \
+              ptr->lon, ptr->lon_hem, \
+              version, \
+              sd_log_inserted, sd_log_initialized, sd_log_last_write);
+#endif
+
+  len = strlen(buf);
+  buf[len] = '\0';
+
+  // generate checksum
+  chk = gps_checksum(buf+1, len);
+
+  // add checksum to end of line before sending
+  if (chk < 16)
+    sprintf(buf + len, "*0%X", (int)chk);
+  else
+    sprintf(buf + len, "*%X", (int)chk);
+
+  return len;
+}
+#endif
+
 
 /**************************************************************************/
 /*!
@@ -476,8 +535,9 @@ void writeHeader2SD(char *filename)
 {
   char tmp[50];
 
-  strcpy_P(tmp, PSTR("# Welcome to Safecast's bGeigie System"));
-  strcat(tmp, version);
+  sd_log_init(sdPwr, sd_cd, chipSelect);
+
+  strcpy_P(tmp, PSTR("# Welcome to Safecast bGeigie-Mini System"));
   sd_log_writeln(filename, tmp);
 
   strcpy_P(tmp, PSTR("# Version,"));
@@ -493,6 +553,13 @@ void writeHeader2SD(char *filename)
 #endif
   sd_log_writeln(filename, tmp);
 
+#if RADIO_ENABLE
+  strcpy_P(tmp, PSTR("# Radio enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# Radio enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
 #if GPS_PROGRAMMING
   strcpy_P(tmp, PSTR("# GPS programming,yes"));
 #else
@@ -501,9 +568,16 @@ void writeHeader2SD(char *filename)
   sd_log_writeln(filename, tmp);
   
 #if DIAGNOSTIC_ENABLE
-  strcpy_P(tmp, PSTR("# Running diagnostic,yes"));
+  strcpy_P(tmp, PSTR("# Diagnostic file,yes"));
   sd_log_writeln(filename, tmp);
+#else
+  strcpy_P(tmp, PSTR("# Diagnostic file,no"));
+  sd_log_writeln(filename, tmp);
+#endif
 
+#if VOLTAGE_SENSE_ENABLE
+  strcpy_P(tmp, PSTR("# Voltage sense,yes"));
+  sd_log_writeln(filename, tmp);
   // battery voltage
   int v0 = (int)(1000*read_voltage(pinV0));
   v0 = (int)(1000*read_voltage(pinV0)); // read 2nd time for stable value
@@ -516,7 +590,7 @@ void writeHeader2SD(char *filename)
   sprintf_P(tmp, PSTR("# Supply voltage,%dmV"), v0);
   sd_log_writeln(filename, tmp);
 #else
-  strcpy_P(tmp, PSTR("# Running diagnostic,no"));
+  strcpy_P(tmp, PSTR("# Voltage sense,no"));
   sd_log_writeln(filename, tmp);
 #endif
 
@@ -550,6 +624,9 @@ void diagnostics()
   char tmp[50];
 
   strcpy_P(tmp, PSTR("--- Diagnostic START ---"));
+  Serial.println(tmp);
+
+  strcpy_P(tmp, PSTR("bGeigie-mini System"));
   Serial.println(tmp);
 
   // Version number
@@ -596,13 +673,12 @@ void diagnostics()
 
 #if GPS_TYPE == GPS_CANMORE
   strcpy_P(tmp, PSTR("GPS type,Canmore"));
-  Serial.println(tmp);
 #elif GPS_TYPE == GPS_MTK
-  gps_diagnostics();
+  strcpy_P(tmp, PSTR("GPS type,MTK"));
 #else
   strcpy_P(tmp, PSTR("GPS type,unknown"));
-  Serial.println(tmp);
 #endif
+  Serial.println(tmp);
 
   strcpy_P(tmp, PSTR("GPS programming,"));
   Serial.print(tmp);
@@ -614,7 +690,14 @@ void diagnostics()
   Serial.println(tmp);
 
 #if DIAGNOSTIC_ENABLE
-  strcpy_P(tmp, PSTR("Running diagnostic,yes"));
+  strcpy_P(tmp, PSTR("Diagnostic file,yes"));
+#else
+  strcpy_P(tmp, PSTR("Diagnostic file,no"));
+#endif
+  Serial.println(tmp);
+
+#if VOLTAGE_SENSE_ENABLE
+  strcpy_P(tmp, PSTR("Voltage sense,yes"));
   Serial.println(tmp);
 
   // battery voltage
@@ -635,7 +718,7 @@ void diagnostics()
   strcpy_P(tmp, PSTR("mV"));
   Serial.println(tmp);
 #else
-  strcpy_P(tmp, PSTR("Running diagnostic,no"));
+  strcpy_P(tmp, PSTR("Voltage sense,no"));
   Serial.println(tmp);
 #endif
 
@@ -647,19 +730,17 @@ void diagnostics()
 
 #if JAPAN_POST
   strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
-  Serial.println(tmp);
 #else
   strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
-  Serial.println(tmp);
 #endif
+  Serial.println(tmp);
 
 #if PLUSSHIELD
   strcpy_P(tmp, PSTR("PlusShield,yes"));
-  Serial.println(tmp);
 #else
   strcpy_P(tmp, PSTR("PlusShield,no"));
-  Serial.println(tmp);
 #endif
+  Serial.println(tmp);
   
   strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
   Serial.println(tmp);
