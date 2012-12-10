@@ -1,0 +1,25 @@
+
+- Ubuntu linux
+- Python 2.7
+- Python serial library
+- Git (just for setup now)
+- Arduino (custom)
+- avr-gcc (or from Arduino ?)
+- SafecastBGeigie library
+- hex files directly
+- uploader script
+
+- Using Ubuntu 12.10 32bit
+- Linux doesn't need FTDI drivers to be installed
+- Remove brltty (sudo apt-get remove brltty)
+- install ant (sudo apt-get install ant)
+- install openjdk-7-jre (sudo apt-get install openjdk-7-jre)
+- install openjdk-7-jdk (sudo apt-get install openjdk-7-jdk)
+
+- requires to update Ubuntu's pyserial to 2.6 manually
+wget http://pypi.python.org/packages/source/p/pyserial/pyserial-2.6.tar.gz
+tar xzfv pyserial-2.6.tar.gz
+cd pyserial-2.6
+python setup.py install
+
+See LadyAda tutorial for FTDI
