@@ -333,15 +333,10 @@ uint8_t sd_reader_read_block(uint32_t arg)
   spi_tx_byte(0xfe);  // magic number
   spi_delay();
 
-  int slice = 32;
-  for (uint16_t i = 0 ; i < 512 ; i+=slice) // send block
+  for (uint16_t i = 0 ; i < 512 ; i++) // send block
   {
-    for (int j = i ; j < i + slice ; j++)
-    {
-      spi_tx_byte(buffer[j]);
-      delayMicroseconds(10);
-    }
-    delayMicroseconds(10);
+    spi_tx_byte(buffer[i]);
+    spi_delay();
   }
 
   spi_tx_byte(0x12);   // dummy data for CRC
@@ -374,7 +369,7 @@ uint8_t sd_reader_write_block(uint32_t arg)
   for (uint16_t i = 0 ; i < 512 ; i++) // send block
   {
     buffer[i] = spi_rx_byte();
-    delayMicroseconds(15);
+    spi_delay();
   }
 
   spi_tx_byte(0xAB);   // receive dummy CRC
