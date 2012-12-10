@@ -1,25 +1,42 @@
 
 - Ubuntu linux
 - Python 2.7
-- Python serial library
-- Git (just for setup now)
-- Arduino (custom)
 - avr-gcc (or from Arduino ?)
 - SafecastBGeigie library
 - hex files directly
 - uploader script
 
 - Using Ubuntu 12.10 32bit
-- Linux doesn't need FTDI drivers to be installed
-- Remove brltty (sudo apt-get remove brltty)
-- install ant (sudo apt-get install ant)
-- install openjdk-7-jre (sudo apt-get install openjdk-7-jre)
-- install openjdk-7-jdk (sudo apt-get install openjdk-7-jdk)
 
+Get development environment
+- install openjdk-7-jre (sudo apt-get install openjdk-7-jre)
+- install custom arduino ide (get at http://github.com/fakufaku/Arduino/downloads)
+wget https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121117-linux.tgz
+cd arduino-Safecast-20121117/libraries
+git clone https://github.com/Safecast/SafecastBGeigie.git
+
+Get the usb-to-serial working in usermode
+- Ubuntu has FTDI driver already
+- Remove brltty (sudo apt-get remove brltty)
+- Need to change permissions of ttyUSB0 to 0666
+if files /etc/udev/rules.d/10-local.rules not existing:
+sudo cp extra/10-local.rules /etc/udev/rules.d/10-local.rules
+if existing
+sudo echo 'KERNEL=="ttyUSB[0-9]",MODE="0666"' >> /etc/udev/rules.d/10-local.rules
+then restart udev daemon
+sudo /etc/init.d/udev restart
+
+Update pyserial
 - requires to update Ubuntu's pyserial to 2.6 manually
 wget http://pypi.python.org/packages/source/p/pyserial/pyserial-2.6.tar.gz
 tar xzfv pyserial-2.6.tar.gz
 cd pyserial-2.6
 python setup.py install
 
-See LadyAda tutorial for FTDI
+Optional
+- install vim
+- install ant (sudo apt-get install ant) (to compile custom arduino only)
+- install openjdk-7-jdk (sudo apt-get install openjdk-7-jdk) (to compile custom arduino only)
+- install screen (useful to debug serial)
+- Git (just for setup now)
+- Arduino (custom) repo
