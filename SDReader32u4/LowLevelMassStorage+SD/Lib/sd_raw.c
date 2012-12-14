@@ -274,8 +274,7 @@ void sd_raw_send_byte(uint8_t b)
  */
 uint8_t sd_raw_rec_byte()
 {
-  SPDR = 0x0;
-  /* Wait for reception complete */
+  /* Wait for reception to complete */
   while(!(SPSR & (1<<SPIF)))
     ;
   /* Return Data Register */
