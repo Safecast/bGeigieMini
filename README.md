@@ -63,7 +63,7 @@ The firmwares for the different devices are given as examples of this library.
 
 5. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
 
-        make upload
+        make program
 
 6. Pull back up the left small switch. Both switches should be up (on) now.
   ![Switch normal mode](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/normal_setting.jpg)
