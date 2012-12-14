@@ -2,6 +2,7 @@
 - Ubuntu linux
 - Python 2.7
 - avr-gcc (or from Arduino ?)
+	Ubuntu package name is gcc-avr, you also need avr-libc
 - SafecastBGeigie library
 - hex files directly
 - uploader script
