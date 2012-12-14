@@ -387,7 +387,10 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
       /* read byte block */
       uint8_t* cache = raw_block;
       for(uint16_t i = 0; i < 512; ++i)
-        *cache++ = sd_raw_rec_byte();
+      {
+	  while(!(SPSR & (1<<SPIF)));
+	  *cache++ = SPDR;
+      }
       raw_block_address = block_address;
 
       /* read crc16 */
