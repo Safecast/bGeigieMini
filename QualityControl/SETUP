@@ -20,12 +20,8 @@ Get the usb-to-serial working in usermode
 - Ubuntu has FTDI driver already
 - Remove brltty (sudo apt-get remove brltty)
 - Need to change permissions of ttyUSB0 to 0666
-if files /etc/udev/rules.d/10-local.rules not existing:
-sudo cp extra/10-local.rules /etc/udev/rules.d/10-local.rules
-if existing
-sudo echo 'KERNEL=="ttyUSB[0-9]",MODE="0666"' >> /etc/udev/rules.d/10-local.rules
-then restart udev daemon
-sudo /etc/init.d/udev restart
+	sudo bash -c 'mkdir -p /etc/udev/rules.d/ && echo KERNEL==\"ttyUSB[0-9]\",MODE=\"0666\" >> /etc/udev/rules.d/10-local.rules'
+	sudo /etc/init.d/udev restart
 
 Update pyserial
 - requires to update Ubuntu's pyserial to 2.6 manually
