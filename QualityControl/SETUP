@@ -12,10 +12,11 @@
 Get development environment
 - install openjdk-7-jre (sudo apt-get install openjdk-7-jre)
 - install custom arduino ide (get at http://github.com/fakufaku/Arduino/downloads)
-wget https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121117-linux.tgz
-cd arduino-Safecast-20121117/libraries
-git clone https://github.com/Safecast/SafecastBGeigie.git
-
+	wget https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121117-linux.tgz
+	tar xzf arduino-Safecast-20121117-linux.tgz
+	cd arduino-Safecast-20121117/libraries
+	git clone https://github.com/Safecast/SafecastBGeigie.git
+   [do not forget that your target board, serial port, ... might need modifications]
 Get the usb-to-serial working in usermode
 - Ubuntu has FTDI driver already
 - Remove brltty (sudo apt-get remove brltty)
