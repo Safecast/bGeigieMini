@@ -30,6 +30,7 @@
 # make extcoff = Convert ELF to AVR Extended COFF.
 #
 # make program = Download the hex file to the device, using avrdude.
+# make program_w_arduino = Download the hex file to the device, using avrdude and an arduino isp programmer.
 #                Please customize the avrdude settings below first!
 #
 # make dfu = Download the hex file to the device, using dfu-programmer (must
@@ -340,12 +341,12 @@ LDFLAGS += $(PRINTF_LIB) $(SCANF_LIB) $(MATH_LIB)
 # to get a full listing.
 #
 #AVRDUDE_PROGRAMMER = avrispmkII
-#AVRDUDE_PROGRAMMER = usbtiny
-AVRDUDE_PROGRAMMER = stk500v1 -b 19200
+AVRDUDE_PROGRAMMER = usbtiny
+AVRDUDE_PROGRAMMER_ARDUINO = stk500v1 -b 19200
 
 # com1 = serial port. Use lpt1 to connect to parallel port.
-#AVRDUDE_PORT = usb
-AVRDUDE_PORT = /dev/ttyUSB0
+AVRDUDE_PORT = usb
+AVRDUDE_PORT_ARDUINO = /dev/ttyUSB0
 
 AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
 #AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep
@@ -370,7 +371,10 @@ AVRDUDE_FLAGS += $(AVRDUDE_NO_VERIFY)
 AVRDUDE_FLAGS += $(AVRDUDE_VERBOSE)
 AVRDUDE_FLAGS += $(AVRDUDE_ERASE_COUNTER)
 
-
+AVRDUDE_FLAGS_ARDUINO = -p $(MCU) -P $(AVRDUDE_PORT_ARDUINO) -c $(AVRDUDE_PROGRAMMER_ARDUINO)
+AVRDUDE_FLAGS_ARDUINO += $(AVRDUDE_NO_VERIFY)
+AVRDUDE_FLAGS_ARDUINO += $(AVRDUDE_VERBOSE)
+AVRDUDE_FLAGS_ARDUINO += $(AVRDUDE_ERASE_COUNTER)
 
 #---------------- Debugging Options ----------------
 
@@ -542,6 +546,9 @@ gccversion :
 # Program the device.  
 program: $(TARGET).hex $(TARGET).eep
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH) $(AVRDUDE_WRITE_EEPROM)
+
+program_w_arduino: $(TARGET).hex $(TARGET).eep
+	$(AVRDUDE) $(AVRDUDE_FLAGS_ARDUINO) $(AVRDUDE_WRITE_FLASH) $(AVRDUDE_WRITE_EEPROM)
 
 flip: $(TARGET).hex
 	batchisp -hardware usb -device $(MCU) -operation erase f
