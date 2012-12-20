@@ -135,6 +135,7 @@ char gps_checksum(char *s, int N);
 int gps_checksum_match(char *str, int L, char *chk);
 int gps_verify_NMEA_sentence(char *sentence, int L);
 unsigned long gps_age();
+int gps_get_next_line(char *str, int N, int timeout);
 void gps_diagnostics();
 
 #endif /* GPS_H */

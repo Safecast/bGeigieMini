@@ -283,90 +283,118 @@ void parse_datetime()
     memcpy(_gps_data.datetime.year, &_gps_data.date[4], 2);
 }
 
+// Gets next gps line, or up to N characters
+// This routine is blocking
+// returns 1 for success, 0 for failure (timeout or N reached)
+int gps_get_next_line(char *str, int N, int timeout)
+{
+  int i = 0;
+  unsigned long now = millis();
+  while (1)
+  {
+    while (_serial->available())
+    {
+      str[i] = _serial->read();
+      if (i == N || str[i] == '\n')
+        goto out;
+      i++;
+    }
+    if (millis() - now > timeout)
+      break;
+  }
+out:
+  // terminate string
+  str[i+1] = 0;
+  // return error if did not terminate correctly
+  if (i == N || millis() - now >= timeout)
+    return 0;
+  else
+    return 1;
+}
+
 void gps_diagnostics()
 {
 
+#define TIMEOUT 1000
+#define MAX_RETRY 10
+#define TMP_BUF_LEN 20
+
   char msg[20];
-  char tmp[30];
-  char tmp2[30];
-  int timeout = 1000;
-  unsigned long now = millis();
-  unsigned long delay;
+  char tmp[TMP_BUF_LEN+1];
+  char mtk_init_cmp[TMP_BUF_LEN+1];
+  char mtk_sys_cmp[TMP_BUF_LEN+1];
+  int mtk_init_stat = 0;
+  int mtk_sys_stat = 0;
+  int r = 0;
   int n;
+
+  // Testing for System Message
+  strcpy_P(mtk_init_cmp, PSTR(MTK_INIT_MSG));
+  strcpy_P(mtk_sys_cmp, PSTR(MTK_SYS_MSG));
+
+  // flush GPS serial
+  while (_serial->available())
+    _serial->read();
 
   // hot restart GPS to catch init message
   strcpy_P(tmp, PSTR(MTK_HOT_RESTART));
   _serial->println(tmp);
 
+  while (r < MAX_RETRY && (mtk_init_stat == 0 || mtk_sys_stat == 0))
+  {
+    // update number of time we ran the loop
+    r++;
 
-  // Testing for System Message
-  strcpy_P(tmp, PSTR(MTK_INIT_MSG));
-  now = millis();
-  while (_serial->read() != '$' && millis() - now < timeout)
-    while (!_serial->available() && millis() - now < timeout)
-      ;
+    // get next GPS line
+    if (!gps_get_next_line(tmp, TMP_BUF_LEN, TIMEOUT))
+      continue;
 
-  delay = millis() - now;
+    // check there is a '$' at beginning
+    n = 0;
+    while (n < TMP_BUF_LEN && tmp[n] != '$')
+      n++;
+    if (n == TMP_BUF_LEN)
+      continue;
+
+    // if INIT not confirmed yet, check for it
+    if (!mtk_init_stat)
+      if (strncmp(mtk_init_cmp, tmp+n, strlen(mtk_init_cmp)) == 0)
+      {
+        mtk_init_stat = 1;
+        continue;
+      }
+
+    // if SYS not confirmed yet, check for it
+    if (!mtk_sys_stat)
+      if (strncmp(mtk_sys_cmp, tmp+n, strlen(mtk_sys_cmp)) == 0)
+        mtk_sys_stat = 1;
+  }
 
   strcpy_P(msg, PSTR("GPS type MTK,"));
   Serial.print(msg);
-
-  if (delay < timeout)
+  if (mtk_init_stat)
   {
-    n = _serial->readBytesUntil('*', tmp2, 29);
-    tmp2[n] = 0;
-
-    if (strncmp(tmp+1, tmp2, 14) == 0)
-    {
-      strcpy_P(msg, PSTR("yes"));
-      Serial.println(msg);
-    }
-    else
-    {
-      strcpy_P(msg, PSTR("no"));
-      Serial.println(msg);
-    }
+    strcpy_P(msg, PSTR("yes"));
+    Serial.println(msg);
   }
   else
   {
-    strcpy_P(msg, PSTR("timeout"));
+    strcpy_P(msg, PSTR("no"));
     Serial.println(msg);
   }
-
-  // Testing for GPS type message
-  strcpy_P(tmp, PSTR(MTK_SYS_MSG));
-  now = millis();
-  while (_serial->read() != '$')
-    while (!_serial->available() && millis() - now < timeout)
-      ;
-
-  delay = millis() - now;
 
   strcpy_P(msg, PSTR("GPS system startup,"));
   Serial.print(msg);
-
-  if (delay < timeout)
+  if (mtk_sys_stat)
   {
-    n = _serial->readBytesUntil('*', tmp2, 29);
-    tmp2[n] = 0;
-
-    if (strncmp(tmp+1, tmp2, 11) == 0)
-    {
-      strcpy_P(msg, PSTR("yes"));
-      Serial.println(msg);
-    }
-    else
-    {
-      strcpy_P(msg, PSTR("no"));
-      Serial.println(msg);
-    }
+    strcpy_P(msg, PSTR("yes"));
+    Serial.println(msg);
   }
   else
   {
-    strcpy_P(msg, PSTR("timeout"));
+    strcpy_P(msg, PSTR("no"));
     Serial.println(msg);
   }
-
 
 }
 
