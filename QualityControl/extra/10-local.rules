@@ -1,0 +1,4 @@
+
+
+# allow serial-to-usb devices to non-root
+KERNEL=="ttyUSB[0-9]",		MODE="0666"

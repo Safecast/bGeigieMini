@@ -155,21 +155,22 @@ timeout = 10
     #usage()
     #sys.exit(1)
 
-re_port = re.compile('^.*usbserial-[A-Za-z0-9]{8}')
+#re_port = re.compile('^.*usbserial-[A-Za-z0-9]{8}')
+re_port = re.compile('^/dev/ttyUSB[0-9]*')
 
 hits = 0
 iterator = sorted(comports())
 for p, desc, hwid in iterator:
   m_port = re_port.match(p)
   if m_port:
-    port = desc
+    port = p
     break
 
 if port == '':
   print "No matching port found."
   sys.exit(0)
 else:
-  print "Found matching port '%s'. Try to open." % (desc,)
+  print "Found matching port '%s'. Try to open." % (port,)
 
 # try to open serial port
 try:
@@ -278,6 +279,7 @@ while (not success and clock() - start < timeout):
     else:
       continue
       
+ser.close()
 
 if (success):
   bgd.diagnosticAnalysis()
