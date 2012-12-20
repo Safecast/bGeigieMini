@@ -187,6 +187,11 @@ void setup()
   // initialize sensors
   bgs_sensors_init(sense_pwr, batt_sense, temp_sense, hum_sense, hv_sense);
   
+  // setup the SD reader
+#if SD_READER_ENABLE
+  sd_reader_init_status = sd_reader_setup();
+#endif
+
   // set device id
   pullDevId();
 
@@ -212,11 +217,6 @@ void setup()
   cmdAdd("setid", cmdSetId);
   cmdAdd("getid", cmdGetId);
 #endif 
-
-  // setup the SD reader
-#if SD_READER_ENABLE
-  sd_reader_init_status = sd_reader_setup();
-#endif
 
   // setup power management
 #if BG_PWR_ENABLE
@@ -646,7 +646,7 @@ void power_up()
 
 #if SD_READER_ENABLE
   // initialize SD reader
-  sd_reader_setup();
+  sd_reader_init_status = sd_reader_setup();
 #endif
 
   // initialize all global variables
@@ -830,7 +830,7 @@ void diagnostics()
   Serial.println(tmp);
   // read all sensors
   int hv = bgs_read_hv();  // V
-  hv = bgs_read_battery(); // read a second time to get rid of bias, or something
+  hv = bgs_read_hv(); // read a second time to get rid of bias, or something
   strcpy_P(tmp, PSTR("High voltage power supply,"));
   Serial.print(tmp);
   Serial.print(hv);
