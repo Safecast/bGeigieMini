@@ -83,7 +83,8 @@ static const int hvps_pwr = 27; // A3
 // LED on, off
 static const int led = 4;
 #define bg_led_config() pinMode(led, OUTPUT)
-#define bg_led_on() digitalWrite(led, HIGH)
-#define bg_led_off() digitalWrite(led, LOW)
+// use direct PORT access for fast switching of LED
+#define bg_led_on() PORTB |= _BV(PORTB4)
+#define bg_led_off() PORTB &= ~_BV(PORTB4)
 
 #endif /* __PIN_DEFINITION_H__ */

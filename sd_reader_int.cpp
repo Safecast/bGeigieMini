@@ -145,6 +145,9 @@ uint8_t sd_reader_init()
   // initialize card (starts SPI as well)
   status = card.init(SPI_HALF_SPEED, cs_sd);
 
+  // card init messes up LED setting (because it is on SS pin)
+  bg_led_config();
+
   return status;
 }
 
@@ -210,7 +213,7 @@ void sd_reader_process_interrupt()
   uint32_t arg = 0;
   uint8_t ret = 0;
 
-  //Serial.println("interrupted!");
+  bg_led_on();
 
   // update timestamp
   last_interrupt = millis();
@@ -305,6 +308,8 @@ void sd_reader_process_interrupt()
         break;
     }
   }
+
+  bg_led_off();
 
   // reset interrupt flag after processing
   sd_reader_interrupted = 0;
