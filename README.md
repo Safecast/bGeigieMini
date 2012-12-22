@@ -53,7 +53,7 @@ Example:
     $BNXSTS,300,2012-12-16T17:58:41Z,4618.9315,N,00658.4670,E,v3.0.3,22,50,3987,,1,1,1*71
     $BNXSTS,300,2012-12-16T17:58:46Z,4618.9289,N,00658.4482,E,v3.0.3,22,49,3987,,1,1,1*75
 
-* Header : BNXRDD
+* Header : BNXSTS
 * Device ID : Device serial number. `300`
 * Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:24Z`
 * Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9996`
