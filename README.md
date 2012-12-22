@@ -9,8 +9,8 @@ The firmwares for the different devices are given as examples of this library.
 
 ## Data log file format
 
-The data is formatted similarly to NMEA sentences that GPS uses. It always starts with a '$'
-and ends with a '\*'. Following the star is a checksum. 
+The data is formatted similarly to NMEA sentences that GPS uses. It always starts with a `$`
+and ends with a `*`. Following the star is a checksum. 
 
 ### Radiation data sentence
 
@@ -39,7 +39,7 @@ Example:
 * GPS validity : 'A' ok, 'V' invalid. `A`
 * HDOP : Horizontal Dilution of Precision (HDOP), relative accuracy of horizontal position. `1.28`
 * Fix Quality : 0 = invalid, 1 = GPS Fix, 2 = DGPS Fix. `1`
-* Checksum. `\*1D`
+* Checksum. `*1D`
 
 ### Device status sentence
 
@@ -68,7 +68,7 @@ Example:
 * SD inserted status. 1=present, 0=missing.
 * SD initialization status. 1=ok, 0=failed.
 * SD last write status. 1 = ok, 0 = last write failed.
-* Checksum. `\*7D`
+* Checksum. `*7D`
 
 ### Checksum computation
 
