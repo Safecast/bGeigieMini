@@ -113,6 +113,9 @@ unsigned int radio_addr = RX_ADDR_BASE;
 uint8_t sd_reader_init_status = 0;
 #endif
 
+// Enable Serial output
+uint8_t serial_output_enable = 0;
+
 // a function to initialize all global variables when the device starts
 void global_variables_init()
 {
@@ -126,6 +129,8 @@ void global_variables_init()
   total_count = 0;
   str_count = 0;
   geiger_status = VOID;
+
+  serial_output_enable = 0;
 }
 
 /* SETUP */
@@ -216,6 +221,7 @@ void setup()
   cmdAdd("help", cmdPrintHelp);
   cmdAdd("setid", cmdSetId);
   cmdAdd("getid", cmdGetId);
+  cmdAdd("verbose", cmdVerbose);
 #endif 
 
   // setup power management
@@ -325,19 +331,13 @@ void loop()
           strncat(filename, gps_getData()->date+2, 2);
           strncat(filename, gps_getData()->date, 2);
 
-          // Prepare new log file header
-          sprintf(line, "# bGeigie - v%s\n# New log begin", version);
-
-          //sd_log_pwr_on();
-
           // write to log file on SD card
           strcpy(filename+8, ext_log);
+          writeHeader2SD(filename);
 
           // write to status file as well
           strcpy(filename+8, ext_sts);
-          sd_log_writeln(filename, line);
-
-          //sd_log_pwr_off();
+          writeHeader2SD(filename);
         }
         
         // generate timestamp. only update the start time if 
@@ -347,16 +347,15 @@ void loop()
         
         if (rtc_acq == 0)
         {
-          Serial.print("No GPS: ");
           sd_log_last_write = 0;   // because we don't write to SD before GPS lock
+          if (serial_output_enable)
+            Serial.print("No GPS: ");
         }
         else
         {
           // dump data to SD card
           strcpy(filename+8, ext_log);
-          //sd_log_pwr_on();
           sd_log_writeln(filename, line);
-          //sd_log_pwr_off();
         }
 
 #if RADIO_ENABLE
@@ -374,13 +373,14 @@ void loop()
         if (sd_log_last_write == 1)
         {
           if (gps_getData()->status[0] == AVAILABLE)
-            blink_led(1, 100);
+            blink_led(1, 100);  // blink once when GPS acquired
           else
-            blink_led(2, 100);
+            blink_led(2, 100);  // blink twice when GPS not available
         }
 
         // output through Serial too
-        Serial.println(line);
+        if (serial_output_enable)
+          Serial.println(line);
 
         // Now take care of the Status message
         line_len = bg_status_str_gen(line);
@@ -406,7 +406,8 @@ void loop()
   #endif
       
         // show in Serial stream
-        Serial.println(line);
+        if (serial_output_enable)
+          Serial.println(line);
 
       } /* gps_available */
     } /* hwc_available */
@@ -653,9 +654,6 @@ void power_up()
   // set initial states of GPS, log file, Geiger counter, etc.
   global_variables_init();
 
-  // run all diagnostics
-  diagnostics();
-  
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_on();
   delay(50); // wait for power to stabilize
@@ -711,6 +709,77 @@ void check_battery_voltage()
     Serial.println("Battery level too low. Turning off.");
     bg_pwr_turn_off();
   }
+}
+
+/*************************/
+/* Write Options to File */
+/*************************/
+
+void writeHeader2SD(char *filename)
+{
+  char tmp[50];
+
+  strcpy_P(tmp, PSTR("# Welcome to Safecast bGeigie3 System"));
+  sd_log_writeln(filename, tmp);
+
+  strcpy_P(tmp, PSTR("# Version,"));
+  strcat(tmp, version);
+  sd_log_writeln(filename, tmp);
+
+  // System free RAM
+  sprintf_P(tmp, PSTR("# System free RAM,%dB"), FreeRam());
+  sd_log_writeln(filename, tmp);
+
+#if RADIO_ENABLE
+  strcpy_P(tmp, PSTR("# Radio enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# Radio enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if SD_READER_ENABLE
+  strcpy_P(tmp, PSTR("# SD reader enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# SD reader enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if BG_PWR_ENABLE
+  strcpy_P(tmp, PSTR("# Power management enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# Power management enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if CMD_LINE_ENABLE
+  strcpy_P(tmp, PSTR("# Command line interface enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# Command line interface enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if HVPS_SENSING
+  strcpy_P(tmp, PSTR("# HV sense enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("# HV sense enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if GPS_1PPS_ENABLE
+  strcpy_P(tmp, PSTR("GPS 1PPS enabled,yes"));
+#else
+  strcpy_P(tmp, PSTR("GPS 1PPS enabled,no"));
+#endif
+  sd_log_writeln(filename, tmp);
+
+#if JAPAN_POST
+  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
+  sd_log_writeln(filename, tmp);
+#else
+  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,no"));
+  sd_log_writeln(filename, tmp);
+#endif
+
 }
 
 /**********************/
@@ -890,14 +959,25 @@ void diagnostics()
 
 void printHelp()
 {
-  Serial.print("Device id: ");
+  char tmp[50];
+  strcpy_P(tmp, PSTR("Device id: "));
+  Serial.println(tmp);
   Serial.println(dev_id);
-  Serial.println("List of commands:");
-  Serial.print("  Set new device id: setid <id>    id is ");
+  strcpy_P(tmp, PSTR("List of commands:"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  Set new device id:     setid <id>    id is "));
+  Serial.print(tmp);
   Serial.print(BMRDD_ID_LEN);
-  Serial.println(" characters long");
-  Serial.println("  Get device id:     getid");
-  Serial.println("  Show this help:    help");
+  strcpy_P(tmp, PSTR(" characters long"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  Get device id:         getid"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  Enable log to serial:  verbose on"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  Disable log to serial: verbose off"));
+  Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  Show this help:        help"));
+  Serial.println(tmp);
 }
 
 void cmdPrintHelp(int arg_cnt, char **args)
@@ -905,36 +985,67 @@ void cmdPrintHelp(int arg_cnt, char **args)
   printHelp();
 }  
 
-/* set new device id in EEPROM */
-void cmdSetId(int arg_cnt, char **args)
+void cmdVerbose(int arg_cnt, char **args)
 {
   if (arg_cnt != 2)
+    goto error;
+
+  if (strncmp_P(args[1], PSTR("on"), 2) == 0)
   {
-    Serial.print("Synthax: setid <id>    id is ");
-    Serial.print(BMRDD_ID_LEN);
-    Serial.println(" characters long");
+    serial_output_enable = 1;
+    return;
+  }
+  else if (strncmp_P(args[1], PSTR("off"), 3) == 0)
+  {
+    serial_output_enable = 0;
     return;
   }
 
+error:
+  char tmp[30];
+  strcpy_P(tmp, "Synthax: verbose <on/off>");
+  Serial.println(tmp);
+  return;
+}
+
+/* set new device id in EEPROM */
+void cmdSetId(int arg_cnt, char **args)
+{
+  char tmp[40];
   int len = 0;
+
+  if (arg_cnt != 2)
+    goto errorSetId;
+
   while (args[1][len] != NULL)
     len++;
 
   if (len != BMRDD_ID_LEN)
-  {
-    Serial.print("Synthax: setid <id>     id is ");
-    Serial.print(BMRDD_ID_LEN);
-    Serial.println(" characters long");
-    return;
-  } 
+    goto errorSetId;
 
+  // write ID to EEPROM
   for (int i=0 ; i < BMRDD_ID_LEN ; i++)
-  {
     EEPROM.write(BMRDD_EEPROM_ID+i, byte(args[1][i]));
-    dev_id[i] = args[1][i];
-  }
-  Serial.print("Device id: ");
-  Serial.println(dev_id);
+
+  // pull dev id from the EEPROM so that we check it was successfully written
+  pullDevId();
+  strcpy_P(tmp, PSTR("Device id: "));
+  Serial.print(tmp);
+  Serial.print(dev_id);
+  if (strncmp(dev_id, args[1], BMRDD_ID_LEN) == 0)
+    strcpy_P(tmp, PSTR(" - success."));
+  else
+    strcpy_P(tmp, PSTR(" - failure."));
+  Serial.println(tmp);
+    
+  return; // happyily
+
+errorSetId:
+  strcpy_P(tmp, PSTR("Synthax: setid <id>     id is "));
+  Serial.print(tmp);
+  Serial.print(BMRDD_ID_LEN);
+  strcpy_P(tmp, PSTR(" characters long"));
+  Serial.println(tmp);
 }
 
 void cmdGetId(int arg_cnt, char **args)
