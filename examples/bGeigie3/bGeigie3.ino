@@ -96,7 +96,6 @@ char hdr[] = "BNXRDD";         // BGeigie New RaDiation Detector header
 char hdr_status[] = "BNXSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];    // device id
 char ext_log[] = ".log";
-char ext_sts[] = ".sts";
  
 // State variables
 int rtc_acq = 0;
@@ -334,10 +333,6 @@ void loop()
           // write to log file on SD card
           strcpy(filename+8, ext_log);
           writeHeader2SD(filename);
-
-          // write to status file as well
-          strcpy(filename+8, ext_sts);
-          writeHeader2SD(filename);
         }
         
         // generate timestamp. only update the start time if 
@@ -388,7 +383,7 @@ void loop()
         // write to SD status file
         if (rtc_acq != 0)
         {
-          strcpy(filename+8, ext_sts);
+          strcpy(filename+8, ext_log);
           //sd_log_pwr_on();
           sd_log_writeln(filename, line);
           //sd_log_pwr_off();
