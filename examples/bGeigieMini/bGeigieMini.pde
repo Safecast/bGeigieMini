@@ -346,11 +346,11 @@ void loop()
 
       }
 
+#if DIAGNOSTIC_ENABLE
       // Generate a diagnostic sentence
       bg_status_str_gen(line);
       Serial.println(line);
 
-#if DIAGNOSTIC_ENABLE
 #if VOLTAGE_SENSE_ENABLE
       if (rtc_acq != 0 && vcc > VCC_LOW_LIMIT)
 #else
