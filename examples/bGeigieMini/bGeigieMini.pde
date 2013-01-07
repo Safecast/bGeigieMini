@@ -417,9 +417,9 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
 
    // add checksum to end of line before sending
    if (chk < 16)
-     sprintf(buf + len, "*0%X", (int)chk);
+     sprintf(buf + len, "*0%hX", (int)chk);
    else
-     sprintf(buf + len, "*%X", (int)chk);
+     sprintf(buf + len, "*%hX", (int)chk);
 
    return len;
 }
