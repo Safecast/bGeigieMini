@@ -183,9 +183,6 @@ void setup()
   // set device id
   pullDevId();
 
-  // initialize SD card
-  sd_log_init(sdPwr, sd_cd, chipSelect);
-
 #if RADIO_ENABLE
   // init chibi on channel normally 20
   radio_init_status = chibiInit();
@@ -194,6 +191,9 @@ void setup()
   chibiSetShortAddr(addr);
   chibiSleepRadio(1);
 #endif
+
+  // initialize SD card
+  sd_log_init(sdPwr, sd_cd, chipSelect);
 
   // set initial state of Geiger to void
   geiger_status = VOID;
