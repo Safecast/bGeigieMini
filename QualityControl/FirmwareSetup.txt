@@ -1,0 +1,17 @@
+
+# Setup fuses of Atmega1284p
+
+avrdude -p m1284p -c arduino -P /dev/tty.usbserial-A800f3vR -b 19200 -U lfuse:w:0xff:m -U hfuse:w:0xdc:m -U efuse:w:0xfd:m
+
+# Upload bootloader to Atmega1284p
+
+avrdude -p m1284p -c arduino -P /dev/tty.usbserial-A800f3vR -b 19200 -U flash:w:firmwares/optiboot_atmega1284p_8MHz.hex
+
+# Setup fuses of Atmega32U4
+
+avrdude -p m32u4 -c arduino -P /dev/tty.usbserial-A800f3vR -b 19200 -U lfuse:w:0xde:m -U hfuse:w:0xd8:m -U efuse:w:0xcb:m
+
+# Upload MassStorage firmware to Atmega32U4
+
+avrdude -p m32u4 -c arduino -P /dev/tty.usbserial-A800f3vR -b 19200 -U flash:w:firmwares/MassStorage.hex
+
