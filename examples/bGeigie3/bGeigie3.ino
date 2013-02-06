@@ -761,9 +761,9 @@ void writeHeader2SD(char *filename)
   sd_log_writeln(filename, tmp);
 
 #if GPS_1PPS_ENABLE
-  strcpy_P(tmp, PSTR("GPS 1PPS enabled,yes"));
+  strcpy_P(tmp, PSTR("# GPS 1PPS enabled,yes"));
 #else
-  strcpy_P(tmp, PSTR("GPS 1PPS enabled,no"));
+  strcpy_P(tmp, PSTR("# GPS 1PPS enabled,no"));
 #endif
   sd_log_writeln(filename, tmp);
 

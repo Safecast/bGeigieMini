@@ -26,17 +26,18 @@ Example:
 
 * Header : BNXRDD
 * Device ID : Device serial number. `300`
-* Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:24Z`
-* Radiation 1 minute : number of pulses given by the Geiger tube in the last minute. `31`
-* Radiation 5 seconds : number of pulses given by the Geiger tube in the last 5 seconds. `31`
-* Radiation total count : total number of pulses recorded since startup. `31`
+* Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:31Z`
+* Radiation 1 minute : number of pulses given by the Geiger tube in the last minute. `30`
+* Radiation 5 seconds : number of pulses given by the Geiger tube in the last 5 seconds. `1`
+* Radiation total count : total number of pulses recorded since startup. `116`
 * Radiation count validity flag : 'A' indicates the counter has been running for more than one minute and the 1 minute count is not zero. Otherwise, the flag is 'V' (void). `A`
-* Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9996`
+* Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9612`
 * Hemisphere : 'N' (north), or 'S' (south). `N`
-* Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4623`
+* Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4831`
 * East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
 * Altitude : Above sea level as given by GPS in meters. `443.7`
 * GPS validity : 'A' ok, 'V' invalid. `A`
+* Number of Satellites : Number of satellites in view. `5`
 * HDOP : Horizontal Dilution of Precision (HDOP), relative accuracy of horizontal position. `1.28`
 * Fix Quality : 0 = invalid, 1 = GPS Fix, 2 = DGPS Fix. `1`
 * Checksum. `*1D`
