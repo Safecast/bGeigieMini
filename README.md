@@ -24,23 +24,23 @@ Example:
     $BNXRDD,300,2012-12-16T17:58:41Z,32,2,122,A,4618.9315,N,00658.4670,E,425.5,A,6,1.27,1*1B
     $BNXRDD,300,2012-12-16T17:58:46Z,34,3,125,A,4618.9289,N,00658.4482,E,426.0,A,6,1.34,1*13
 
-* Header : BNXRDD
-* Device ID : Device serial number. `300`
-* Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:31Z`
-* Radiation 1 minute : number of pulses given by the Geiger tube in the last minute. `30`
-* Radiation 5 seconds : number of pulses given by the Geiger tube in the last 5 seconds. `1`
-* Radiation total count : total number of pulses recorded since startup. `116`
-* Radiation count validity flag : 'A' indicates the counter has been running for more than one minute and the 1 minute count is not zero. Otherwise, the flag is 'V' (void). `A`
-* Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9612`
-* Hemisphere : 'N' (north), or 'S' (south). `N`
-* Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4831`
-* East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
-* Altitude : Above sea level as given by GPS in meters. `443.7`
-* GPS validity : 'A' ok, 'V' invalid. `A`
-* Number of Satellites : Number of satellites in view. `5`
-* HDOP : Horizontal Dilution of Precision (HDOP), relative accuracy of horizontal position. `1.28`
-* Fix Quality : 0 = invalid, 1 = GPS Fix, 2 = DGPS Fix. `1`
-* Checksum. `*1D`
+0. Header : BNXRDD
+1. Device ID : Device serial number. `300`
+2. Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:31Z`
+3. Radiation 1 minute : number of pulses given by the Geiger tube in the last minute. `30`
+4. Radiation 5 seconds : number of pulses given by the Geiger tube in the last 5 seconds. `1`
+5. Radiation total count : total number of pulses recorded since startup. `116`
+6. Radiation count validity flag : 'A' indicates the counter has been running for more than one minute and the 1 minute count is not zero. Otherwise, the flag is 'V' (void). `A`
+7. Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9612`
+8. Hemisphere : 'N' (north), or 'S' (south). `N`
+9. Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4831`
+10. East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
+11. Altitude : Above sea level as given by GPS in meters. `443.7`
+12. GPS validity : 'A' ok, 'V' invalid. `A`
+13. Number of Satellites : Number of satellites in view. `5`
+14. HDOP : Horizontal Dilution of Precision (HDOP), relative accuracy of horizontal position. `1.28`
+15. Fix Quality : 0 = invalid, 1 = GPS Fix, 2 = DGPS Fix. `1`
+16. Checksum. `*1D`
 
 ### Device status sentence
 
@@ -54,22 +54,22 @@ Example:
     $BNXSTS,300,2012-12-16T17:58:41Z,4618.9315,N,00658.4670,E,v3.0.3,22,50,3987,,1,1,1*71
     $BNXSTS,300,2012-12-16T17:58:46Z,4618.9289,N,00658.4482,E,v3.0.3,22,49,3987,,1,1,1*75
 
-* Header : BNXSTS
-* Device ID : Device serial number. `300`
-* Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:24Z`
-* Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9996`
-* Hemisphere : 'N' (north), or 'S' (south). `N`
-* Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4623`
-* East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
-* Firmware version number. `v3.0.3`
-* Temperature in degree Celcius.
-* Relative humidity in %.
-* Battery voltage in millivolts.
-* High voltage in volts, if available. Empty otherwise.
-* SD inserted status. 1=present, 0=missing.
-* SD initialization status. 1=ok, 0=failed.
-* SD last write status. 1 = ok, 0 = last write failed.
-* Checksum. `*7D`
+0. Header : BNXSTS
+1. Device ID : Device serial number. `300`
+2. Date : Date formatted according to iso-8601 standard. Usually uses GMT. `2012-12-16T17:58:24Z`
+3. Latitude : As given by GPS. The format is `ddmm.mmmm` where `dd` is in degrees and `mm.mmmm` is decimal minute. `4618.9996`
+4. Hemisphere : 'N' (north), or 'S' (south). `N`
+5. Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4623`
+6. East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
+7. Firmware version number. `v3.0.3`
+8. Temperature in degree Celcius.
+9. Relative humidity in %.
+10. Battery voltage in millivolts.
+11. High voltage in volts, if available. Empty otherwise.
+12. SD inserted status. 1=present, 0=missing.
+13. SD initialization status. 1=ok, 0=failed.
+14. SD last write status. 1 = ok, 0 = last write failed.
+15. Checksum. `*7D`
 
 ### Checksum computation
 
