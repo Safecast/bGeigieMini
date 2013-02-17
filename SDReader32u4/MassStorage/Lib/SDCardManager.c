@@ -90,29 +90,29 @@ uintptr_t SDCardManager_WriteBlockHandler(uint8_t* buffer, offset_t offset, void
 	}
 	
 	/* Write one 16-byte chunk of data to the dataflash */
-	buffer[0] = Endpoint_Read_Byte();
-	buffer[1] = Endpoint_Read_Byte();
-	buffer[2] = Endpoint_Read_Byte();
-	buffer[3] = Endpoint_Read_Byte();
-	buffer[4] = Endpoint_Read_Byte();
-	buffer[5] = Endpoint_Read_Byte();
-	buffer[6] = Endpoint_Read_Byte();
-	buffer[7] = Endpoint_Read_Byte();
-	buffer[8] = Endpoint_Read_Byte();
-	buffer[9] = Endpoint_Read_Byte();
-	buffer[10] = Endpoint_Read_Byte();
-	buffer[11] = Endpoint_Read_Byte();
-	buffer[12] = Endpoint_Read_Byte();
-	buffer[13] = Endpoint_Read_Byte();
-	buffer[14] = Endpoint_Read_Byte();
-	buffer[15] = Endpoint_Read_Byte();
+	buffer[0] = Endpoint_Read_8();
+	buffer[1] = Endpoint_Read_8();
+	buffer[2] = Endpoint_Read_8();
+	buffer[3] = Endpoint_Read_8();
+	buffer[4] = Endpoint_Read_8();
+	buffer[5] = Endpoint_Read_8();
+	buffer[6] = Endpoint_Read_8();
+	buffer[7] = Endpoint_Read_8();
+	buffer[8] = Endpoint_Read_8();
+	buffer[9] = Endpoint_Read_8();
+	buffer[10] = Endpoint_Read_8();
+	buffer[11] = Endpoint_Read_8();
+	buffer[12] = Endpoint_Read_8();
+	buffer[13] = Endpoint_Read_8();
+	buffer[14] = Endpoint_Read_8();
+	buffer[15] = Endpoint_Read_8();
 	
 	return 16;
 }
 
 void SDCardManager_WriteBlocks(uint32_t BlockAddress, uint16_t TotalBlocks)
 {
-	bool     UsingSecondBuffer   = false;
+	//bool     UsingSecondBuffer   = false;
 
 	printf_P(PSTR("W %li %i\r\n"), BlockAddress, TotalBlocks);
 
@@ -148,7 +148,7 @@ void SDCardManager_WriteBlocks(uint32_t BlockAddress, uint16_t TotalBlocks)
 
 uint8_t SDCardManager_ReadBlockHandler(uint8_t* buffer, offset_t offset, void* p)
 {
-	uint8_t i;
+	//uint8_t i;
 
 	/* Check if the endpoint is currently full */
 	if (!(Endpoint_IsReadWriteAllowed()))
@@ -161,22 +161,22 @@ uint8_t SDCardManager_ReadBlockHandler(uint8_t* buffer, offset_t offset, void* p
 		  return 0;
 	}
 		
-	Endpoint_Write_Byte(buffer[0]);
-	Endpoint_Write_Byte(buffer[1]);
-	Endpoint_Write_Byte(buffer[2]);
-	Endpoint_Write_Byte(buffer[3]);
-	Endpoint_Write_Byte(buffer[4]);
-	Endpoint_Write_Byte(buffer[5]);
-	Endpoint_Write_Byte(buffer[6]);
-	Endpoint_Write_Byte(buffer[7]);
-	Endpoint_Write_Byte(buffer[8]);
-	Endpoint_Write_Byte(buffer[9]);
-	Endpoint_Write_Byte(buffer[10]);
-	Endpoint_Write_Byte(buffer[11]);
-	Endpoint_Write_Byte(buffer[12]);
-	Endpoint_Write_Byte(buffer[13]);
-	Endpoint_Write_Byte(buffer[14]);
-	Endpoint_Write_Byte(buffer[15]);
+	Endpoint_Write_8(buffer[0]);
+	Endpoint_Write_8(buffer[1]);
+	Endpoint_Write_8(buffer[2]);
+	Endpoint_Write_8(buffer[3]);
+	Endpoint_Write_8(buffer[4]);
+	Endpoint_Write_8(buffer[5]);
+	Endpoint_Write_8(buffer[6]);
+	Endpoint_Write_8(buffer[7]);
+	Endpoint_Write_8(buffer[8]);
+	Endpoint_Write_8(buffer[9]);
+	Endpoint_Write_8(buffer[10]);
+	Endpoint_Write_8(buffer[11]);
+	Endpoint_Write_8(buffer[12]);
+	Endpoint_Write_8(buffer[13]);
+	Endpoint_Write_8(buffer[14]);
+	Endpoint_Write_8(buffer[15]);
 	
 	/* Check if the current command is being aborted by the host */
 	if (IsMassStoreReset)
@@ -187,8 +187,8 @@ uint8_t SDCardManager_ReadBlockHandler(uint8_t* buffer, offset_t offset, void* p
 
 void SDCardManager_ReadBlocks(uint32_t BlockAddress, uint16_t TotalBlocks)
 {
-	uint16_t CurrPage          = BlockAddress;
-	uint16_t CurrPageByte      = 0;
+	//uint16_t CurrPage          = BlockAddress;
+	//uint16_t CurrPageByte      = 0;
 
 	printf_P(PSTR("R %li %i\r\n"), BlockAddress, TotalBlocks);
 	

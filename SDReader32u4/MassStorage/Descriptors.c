@@ -1,18 +1,18 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2009.
-              
+     Copyright (C) Dean Camera, 2012.
+
   dean [at] fourwalledcubicle [dot] com
-      www.fourwalledcubicle.com
+           www.lufa-lib.org
 */
 
 /*
-  Copyright 2009  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2012  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
-  Permission to use, copy, modify, and distribute this software
-  and its documentation for any purpose and without fee is hereby
-  granted, provided that the above copyright notice appear in all
-  copies and that both that the copyright notice and this
+  Permission to use, copy, modify, distribute, and sell this
+  software and its documentation for any purpose is hereby granted
+  without fee, provided that the above copyright notice appear in
+  all copies and that both that the copyright notice and this
   permission notice and warranty disclaimer appear in supporting
   documentation, and that the name of the author not be used in
   advertising or publicity pertaining to distribution of the
@@ -30,24 +30,13 @@
 
 /** \file
  *
- *  USB Device Descriptors, for library use when in USB device mode. Descriptors are special 
+ *  USB Device Descriptors, for library use when in USB device mode. Descriptors are special
  *  computer-readable structures which the host requests upon device enumeration, to determine
- *  the device's capabilities and functions.  
+ *  the device's capabilities and functions.
  */
 
 #include "Descriptors.h"
 
-/* On some devices, there is a factory set internal serial number which can be automatically sent to the host as
- * the device's serial number when the Device Descriptor's .SerialNumStrIndex entry is set to USE_INTERNAL_SERIAL.
- * This allows the host to track a device across insertions on different ports, allowing them to retain allocated
- * resources like COM port numbers and drivers. On demos using this feature, give a warning on unsupported devices
- * so that the user can supply their own serial number descriptor instead or remove the USE_INTERNAL_SERIAL value
- * from the Device Descriptor (forcing the host to generate a serial number for each device from the VID, PID and
- * port location).
- */
-#if (USE_INTERNAL_SERIAL == NO_DESCRIPTOR)
-	#warning USE_INTERNAL_SERIAL is not available on this AVR - please manually construct a device serial descriptor.
-#endif
 
 /** Device descriptor structure. This descriptor, located in FLASH memory, describes the overall
  *  device characteristics, including the supported USB version, control endpoint size and the
@@ -57,22 +46,22 @@
 const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
 {
 	.Header                 = {.Size = sizeof(USB_Descriptor_Device_t), .Type = DTYPE_Device},
-		
+
 	.USBSpecification       = VERSION_BCD(01.10),
-	.Class                  = 0x00,
-	.SubClass               = 0x00,
-	.Protocol               = 0x00,
-				
+	.Class                  = USB_CSCP_NoDeviceClass,
+	.SubClass               = USB_CSCP_NoDeviceSubclass,
+	.Protocol               = USB_CSCP_NoDeviceProtocol,
+
 	.Endpoint0Size          = FIXED_CONTROL_ENDPOINT_SIZE,
-		
+
 	.VendorID               = 0x03EB,
 	.ProductID              = 0x2045,
-	.ReleaseNumber          = 0x0000,
-		
+	.ReleaseNumber          = VERSION_BCD(00.01),
+
 	.ManufacturerStrIndex   = 0x01,
 	.ProductStrIndex        = 0x02,
 	.SerialNumStrIndex      = USE_INTERNAL_SERIAL,
-		
+
 	.NumberOfConfigurations = FIXED_NUM_CONFIGURATIONS
 };
 
@@ -83,55 +72,55 @@ const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
  */
 const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 {
-	.Config = 
+	.Config =
 		{
 			.Header                 = {.Size = sizeof(USB_Descriptor_Configuration_Header_t), .Type = DTYPE_Configuration},
 
 			.TotalConfigurationSize = sizeof(USB_Descriptor_Configuration_t),
 			.TotalInterfaces        = 1,
-				
+
 			.ConfigurationNumber    = 1,
 			.ConfigurationStrIndex  = NO_DESCRIPTOR,
-				
-			.ConfigAttributes       = USB_CONFIG_ATTR_BUSPOWERED,
-			
+
+			.ConfigAttributes       = USB_CONFIG_ATTR_RESERVED,
+
 			.MaxPowerConsumption    = USB_CONFIG_POWER_MA(100)
 		},
-		
-	.Interface = 
+
+	.MS_Interface =
 		{
 			.Header                 = {.Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface},
 
 			.InterfaceNumber        = 0,
 			.AlternateSetting       = 0,
-			
+
 			.TotalEndpoints         = 2,
-				
-			.Class                  = 0x08,
-			.SubClass               = 0x06,
-			.Protocol               = 0x50,
-				
+
+			.Class                  = MS_CSCP_MassStorageClass,
+			.SubClass               = MS_CSCP_SCSITransparentSubclass,
+			.Protocol               = MS_CSCP_BulkOnlyTransportProtocol,
+
 			.InterfaceStrIndex      = NO_DESCRIPTOR
 		},
 
-	.DataInEndpoint = 
+	.MS_DataInEndpoint =
 		{
 			.Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
 
-			.EndpointAddress        = (ENDPOINT_DESCRIPTOR_DIR_IN | MASS_STORAGE_IN_EPNUM),
+			.EndpointAddress        = MASS_STORAGE_IN_EPADDR,
 			.Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 			.EndpointSize           = MASS_STORAGE_IO_EPSIZE,
-			.PollingIntervalMS      = 0x00
+			.PollingIntervalMS      = 0x05
 		},
 
-	.DataOutEndpoint = 
+	.MS_DataOutEndpoint =
 		{
 			.Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
 
-			.EndpointAddress        = (ENDPOINT_DESCRIPTOR_DIR_OUT | MASS_STORAGE_OUT_EPNUM),
+			.EndpointAddress        = MASS_STORAGE_OUT_EPADDR,
 			.Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 			.EndpointSize           = MASS_STORAGE_IO_EPSIZE,
-			.PollingIntervalMS      = 0x00
+			.PollingIntervalMS      = 0x05
 		}
 };
 
@@ -142,7 +131,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 const USB_Descriptor_String_t PROGMEM LanguageString =
 {
 	.Header                 = {.Size = USB_STRING_LEN(1), .Type = DTYPE_String},
-		
+
 	.UnicodeString          = {LANGUAGE_ID_ENG}
 };
 
@@ -153,8 +142,8 @@ const USB_Descriptor_String_t PROGMEM LanguageString =
 const USB_Descriptor_String_t PROGMEM ManufacturerString =
 {
 	.Header                 = {.Size = USB_STRING_LEN(14), .Type = DTYPE_String},
-		
-	.UnicodeString          = L"Safecast Japan"
+
+	.UnicodeString          = L"SAFECAST Japan"
 };
 
 /** Product descriptor string. This is a Unicode string containing the product's details in human readable form,
@@ -163,9 +152,9 @@ const USB_Descriptor_String_t PROGMEM ManufacturerString =
  */
 const USB_Descriptor_String_t PROGMEM ProductString =
 {
-	.Header                 = {.Size = USB_STRING_LEN(11), .Type = DTYPE_String},
-		
-	.UnicodeString          = L"BentoGeigie"
+	.Header                 = {.Size = USB_STRING_LEN(10), .Type = DTYPE_String},
+
+	.UnicodeString          = L"bGeigie NX"
 };
 
 /** This function is called by the library when in device mode, and must be overridden (see library "USB Descriptors"
@@ -174,44 +163,47 @@ const USB_Descriptor_String_t PROGMEM ProductString =
  *  is called so that the descriptor details can be passed back and the appropriate descriptor sent back to the
  *  USB host.
  */
-uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex, void** const DescriptorAddress)
+uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
+                                    const uint8_t wIndex,
+                                    const void** const DescriptorAddress)
 {
 	const uint8_t  DescriptorType   = (wValue >> 8);
 	const uint8_t  DescriptorNumber = (wValue & 0xFF);
 
-	void*    Address = NULL;
-	uint16_t Size    = NO_DESCRIPTOR;
+	const void* Address = NULL;
+	uint16_t    Size    = NO_DESCRIPTOR;
 
 	switch (DescriptorType)
 	{
-		case DTYPE_Device: 
-			Address = (void*)&DeviceDescriptor;
+		case DTYPE_Device:
+			Address = &DeviceDescriptor;
 			Size    = sizeof(USB_Descriptor_Device_t);
 			break;
-		case DTYPE_Configuration: 
-			Address = (void*)&ConfigurationDescriptor;
+		case DTYPE_Configuration:
+			Address = &ConfigurationDescriptor;
 			Size    = sizeof(USB_Descriptor_Configuration_t);
 			break;
-		case DTYPE_String: 
+		case DTYPE_String:
 			switch (DescriptorNumber)
 			{
-				case 0x00: 
-					Address = (void*)&LanguageString;
+				case 0x00:
+					Address = &LanguageString;
 					Size    = pgm_read_byte(&LanguageString.Header.Size);
 					break;
-				case 0x01: 
-					Address = (void*)&ManufacturerString;
+				case 0x01:
+					Address = &ManufacturerString;
 					Size    = pgm_read_byte(&ManufacturerString.Header.Size);
 					break;
-				case 0x02: 
-					Address = (void*)&ProductString;
+				case 0x02:
+					Address = &ProductString;
 					Size    = pgm_read_byte(&ProductString.Header.Size);
 					break;
 			}
-			
+
 			break;
 	}
-	
+
 	*DescriptorAddress = Address;
 	return Size;
 }
+

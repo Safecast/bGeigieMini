@@ -13,7 +13,7 @@
 #include "sd_raw.h"
 #include "Timer.h"
 
-#include <LUFA/Drivers/Peripheral/SerialStream.h>
+#include <LUFA/Drivers/Peripheral/Serial.h>
 
 /**
  * \addtogroup sd_raw MMC/SD/SDHC card raw access

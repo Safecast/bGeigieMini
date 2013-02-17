@@ -14,6 +14,7 @@
 
 #include <LUFA/Common/Common.h>
 #include <LUFA/Drivers/USB/USB.h>
+#include <LUFA/Drivers/Board/Dataflash.h>
 
 /* Defines: */
 /** Block size of the device. This is kept at 512 to remain compatible with the OS despite the underlying
