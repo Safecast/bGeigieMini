@@ -618,8 +618,9 @@ void power_up()
 {
   char tmp[25];
 
-  // blink
-  blink_led(3, 100);
+  // blink if power up (not SD reader)
+  if (!sd_reader_interrupted)
+    blink_led(3, 100);
 
   pinMode(cs_sd, OUTPUT);
   digitalWrite(cs_sd, HIGH);

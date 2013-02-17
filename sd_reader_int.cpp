@@ -272,6 +272,7 @@ void sd_reader_process_interrupt()
     switch (cmd)
     {
       case 0x40 | CMD_SD_ON:
+        //Serial.println("SD on cmd.");
         // if we get here, it is success!
         select_32u4();
         spi_tx_byte(R1_SUCCESS);
@@ -279,6 +280,7 @@ void sd_reader_process_interrupt()
         break;
 
       case 0x40 | CMD_SD_OFF:
+        //Serial.println("SD off cmd.");
         // turn SD card off
         sd_power_off();
         sd_reader_state = SD_READER_IDLE;
@@ -289,14 +291,17 @@ void sd_reader_process_interrupt()
         break;
 
       case 0x40 | CMD_READ_SINGLE_BLOCK:
+        //Serial.println("SD read block cmd.");
         sd_reader_read_block(arg);
         break;
 
       case 0x40 | CMD_WRITE_SINGLE_BLOCK:
+        //Serial.println("SD write block cmd.");
         sd_reader_write_block(arg);
         break;
 
       case 0x40 | CMD_REQ_INFO:
+        //Serial.println("SD info req cmd.");
         sd_reader_get_info();
         break;
 

@@ -274,7 +274,8 @@ void sd_raw_send_byte(uint8_t b)
  */
 uint8_t sd_raw_rec_byte()
 {
-  /* Wait for reception to complete */
+  SPDR = 0x0;
+  /* Wait for reception complete */
   while(!(SPSR & (1<<SPIF)))
     ;
   /* Return Data Register */
@@ -293,6 +294,8 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
 {
   uint8_t response;
   uint8_t n_try = 0;
+
+  //printf("Cmd %hx:%lx ", command, arg);
 
   do
   {
@@ -334,6 +337,8 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     }
   }
   while (response == R1_WAIT_RETRY);
+
+  //printf("Rep 0x%hx\n", response);
 
   return response;
 }
@@ -388,8 +393,12 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
       uint8_t* cache = raw_block;
       for(uint16_t i = 0; i < 512; ++i)
       {
+        /* *cache++ = sd_raw_rec_byte(); */
+        /* Boris' optimization (inlining) */
+        SPDR = 0x0;
         while(!(SPSR & (1<<SPIF)))
           ;
+        /* Return Data Register */
         *cache++ = SPDR;
       }
       raw_block_address = block_address;
