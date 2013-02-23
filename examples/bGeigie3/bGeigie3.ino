@@ -91,7 +91,7 @@ static HardwareCounter hwc(counts, TIME_INTERVAL);
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
 
-char filename[13];              // placeholder for filename
+char filename[18];              // placeholder for filename
 char hdr[] = "BNXRDD";         // BGeigie New RaDiation Detector header
 char hdr_status[] = "BNXSTS";  // Status message header
 char dev_id[BMRDD_ID_LEN+1];    // device id
@@ -129,7 +129,7 @@ void global_variables_init()
   str_count = 0;
   geiger_status = VOID;
 
-  serial_output_enable = 0;
+  serial_output_enable = 1;
 }
 
 /* SETUP */
@@ -184,6 +184,11 @@ void setup()
   // Issue some commands to the GPS
   Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
   Serial1.println(MTK_UPDATE_RATE_1HZ);
+
+  // power up SD card
+  pinMode(sd_pwr, OUTPUT);
+  digitalWrite(sd_pwr, LOW);
+  delay(20);
 
   // initialize SD card
   sd_log_init(sd_pwr, sd_detect, cs_sd);
@@ -325,13 +330,21 @@ void loop()
           rtc_acq = 1;
 
           // Create the filename for that drive
-          strcpy(filename, dev_id);
+          strcpy(filename, "20");
+          strncat(filename, gps_getData()->datetime.year, 2);
+
+          // create the directory (if necessary)
+          SD.mkdir(filename);
+
+          // create the rest of the file name
+          strcat(filename, "/");
+          strncat(filename, dev_id, 3);
           strcat(filename, "-");
-          strncat(filename, gps_getData()->date+2, 2);
-          strncat(filename, gps_getData()->date, 2);
+          strncat(filename, gps_getData()->datetime.month, 2);
+          strncat(filename, gps_getData()->datetime.day, 2);
+          strncat(filename, ext_log, 4);
 
           // write to log file on SD card
-          strcpy(filename+8, ext_log);
           writeHeader2SD(filename);
         }
         
@@ -349,7 +362,6 @@ void loop()
         else
         {
           // dump data to SD card
-          strcpy(filename+8, ext_log);
           sd_log_writeln(filename, line);
         }
 
@@ -380,10 +392,9 @@ void loop()
         // Now take care of the Status message
         line_len = bg_status_str_gen(line);
 
-        // write to SD status file
+        // write to status to SD
         if (rtc_acq != 0)
         {
-          strcpy(filename+8, ext_log);
           //sd_log_pwr_on();
           sd_log_writeln(filename, line);
           //sd_log_pwr_off();
@@ -622,10 +633,19 @@ void power_up()
   if (!sd_reader_interrupted)
     blink_led(3, 100);
 
+  // turn SD on and initialize
+  sd_log_pwr_off();
+  delay(10);
+  sd_log_pwr_on();
   pinMode(cs_sd, OUTPUT);
   digitalWrite(cs_sd, HIGH);
   pinMode(MOSI, OUTPUT);
   pinMode(SCK, OUTPUT);
+  pinMode(MISO, INPUT);
+  digitalWrite(MISO, HIGH); // pullup
+
+  // Init SD card
+  sd_log_init(sd_pwr, sd_detect, cs_sd);
 
   // flush Serial1 (GPS) before restarting GPS
   while(Serial1.available())
@@ -634,21 +654,22 @@ void power_up()
   // turn GPS on and set status to not acquired yet
   bg_gps_on();
 
-  // turn SD on and initialize
-  sd_log_pwr_on();
-  sd_log_init(sd_pwr, sd_detect, cs_sd);
-
   // initialize sensors
   bg_sensors_on();
-
-#if SD_READER_ENABLE
-  // initialize SD reader
-  sd_reader_init_status = sd_reader_setup();
-#endif
 
   // initialize all global variables
   // set initial states of GPS, log file, Geiger counter, etc.
   global_variables_init();
+
+#if SD_READER_ENABLE
+  // initialize SD reader
+  if (!sd_reader_interrupted)
+    sd_reader_init_status = sd_reader_setup();
+#endif
+
+  // run diagnostic (except when waking for SD reader)
+  if (!sd_reader_interrupted)
+    diagnostics();
 
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_on();
@@ -679,6 +700,8 @@ void shutdown()
   pinMode(MOSI, INPUT);
   digitalWrite(SCK, LOW);
   pinMode(SCK, INPUT);
+  digitalWrite(MISO, LOW);
+  pinMode(MISO, INPUT);
 
   // we turn all pins to input no pull-up to save power
   // this will also turn off all the peripherals
@@ -694,6 +717,7 @@ void shutdown()
   // say goodbye...
   Serial.println("bGeigie sleeps... good night.");
   delay(20);
+  Serial.flush();
 }
 
 void check_battery_voltage()

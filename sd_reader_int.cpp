@@ -49,6 +49,11 @@ int sd_reader_setup()
   configure_break_pin();
 #endif
 
+  // configure global variables (to start in known state
+  sd_reader_state = SD_READER_IDLE;
+  sd_reader_interrupted = 0;
+  last_interrupt = 0;
+
   // initlalize all the pins
   pinMode(cs_32u4, OUTPUT);
   unselect_32u4();    // unselect
@@ -57,7 +62,7 @@ int sd_reader_setup()
   unselect_sd();
 
   pinMode(sd_pwr, OUTPUT);
-  sd_power_off();
+  //sd_power_off();
 
   // configure SPI pins
   pinMode(MISO, INPUT);
@@ -116,8 +121,8 @@ void sd_reader_loop()
   }
   else if (sd_reader_state == SD_READER_ACTIVE && now - last_interrupt > SD_READER_TIMEOUT)
   {
-    sd_power_off();
     sd_reader_state = SD_READER_IDLE;
+    bg_led_config();
   }
 
 }
@@ -135,12 +140,12 @@ uint8_t sd_reader_init()
     return 0;
 
   // first turn off SD card for a little while
-  sd_power_off();
-  delay(10);
+  //sd_power_off();
+  //delay(10);
 
   // power on SD card
-  sd_power_on();
-  delay(10);
+  //sd_power_on();
+  //delay(10);
 
   // initialize card (starts SPI as well)
   status = card.init(SPI_HALF_SPEED, cs_sd);
@@ -215,6 +220,9 @@ void sd_reader_process_interrupt()
 
   bg_led_on();
 
+  // reset interrupt flag before processing
+  sd_reader_interrupted = 0;
+
   // update timestamp
   last_interrupt = millis();
 
@@ -282,7 +290,7 @@ void sd_reader_process_interrupt()
       case 0x40 | CMD_SD_OFF:
         //Serial.println("SD off cmd.");
         // turn SD card off
-        sd_power_off();
+        //sd_power_off();
         sd_reader_state = SD_READER_IDLE;
         // send response
         select_32u4();
@@ -315,9 +323,6 @@ void sd_reader_process_interrupt()
   }
 
   bg_led_off();
-
-  // reset interrupt flag after processing
-  sd_reader_interrupted = 0;
 
 }
 

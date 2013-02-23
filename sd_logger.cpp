@@ -47,7 +47,7 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   // initialize pins
   sd_log_pwr = pin_pwr;
   pinMode(sd_log_pwr, OUTPUT);
-  sd_log_pwr_off();
+  //sd_log_pwr_off();
 
   sd_log_detect = pin_detect;
   pinMode(sd_log_detect, INPUT);
@@ -72,7 +72,7 @@ int sd_log_init(int pin_pwr, int pin_detect, int pin_cs)
   sd_log_inserted = 1;
 
   // turn on SD card
-  sd_log_pwr_on();
+  //sd_log_pwr_on();
 
   // see if the card can be initialized:
   if (!SD.begin(sd_log_cs)) {
