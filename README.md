@@ -142,11 +142,11 @@ The checksum is then always encoded as a string of two ascii characters giving t
   ![Switch Setting 32u4](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_32u4.jpg)
 4. In a terminal, go to `SDReader32u4/LowLevelMassStorage+SD`.
 
-        cd <arduino_libraries_path>/SDReader32u4/LowLevelMassStorage+SD
+        cd <arduino_libraries_path>/SDReader32u4/MassStorage
 
 5. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
 
-        make program
+        make avrdude
 
 6. Pull back up the left small switch. Both switches should be up (on) now.
   ![Switch normal mode](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/normal_setting.jpg)
@@ -189,7 +189,7 @@ The checksum is then always encoded as a string of two ascii characters giving t
 
 ## Example Sketches
 
-The sketches given in examples are the actuall firmware of the different Safecast bGeigie devices:
+The sketches given in examples are the actual firmware of the different Safecast bGeigie devices:
 
 * bGeigieMini
 * bGeigieClassic
