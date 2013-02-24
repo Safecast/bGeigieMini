@@ -62,7 +62,7 @@ Example:
 5. Longitude : As given by GPS. The format is `dddmm.mmmm` where `ddd` is in degrees and `mm.mmmm` is decimal minute. `00658.4623`
 6. East/West : 'W' (west) or 'E' (east) from Greenwich. `E`
 7. Firmware version number. `v3.0.3`
-8. Temperature in degree Celcius.
+8. Temperature in degree Celsius.
 9. Relative humidity in %.
 10. Battery voltage in millivolts.
 11. High voltage in volts, if available. Empty otherwise.
@@ -73,11 +73,11 @@ Example:
 
 ### Checksum computation
 
-The checksum is a XOR of all the ascii characters bytes between '$' and '\*' (these excluded).
+The checksum is a XOR of all the ASCII characters bytes between '$' and '\*' (these excluded).
 Sample C code to compute the checksum is given.
 
     /* Compute checksum of input array */
-    char gps_checksum(char *s, int N) 
+    char GPS_checksum(char *s, int N) 
     {             
       int i = 0;  
       char chk = s[0];
@@ -88,7 +88,7 @@ Sample C code to compute the checksum is given.
       return chk;
     } 
 
-The checksum is then always encoded as a string of two ascii characters giving the hexadecimal value of the checksum.
+The checksum is then always encoded as a string of two ASCII characters giving the hexadecimal value of the checksum.
 
 ## Setup System on Mac OS X
 
@@ -140,7 +140,7 @@ The checksum is then always encoded as a string of two ascii characters giving t
   ![ISP setting](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/isp_setting.jpg)
 3. Pull low (off) the small switch on the right of the black dual switch.
   ![Switch Setting 32u4](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_32u4.jpg)
-4. In a terminal, go to `SDReader32u4/LowLevelMassStorage+SD`.
+4. In a terminal, go to `SDReader32u4/MassStorage`.
 
         cd <arduino_libraries_path>/SDReader32u4/MassStorage
 
