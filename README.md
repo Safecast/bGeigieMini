@@ -225,5 +225,13 @@ The sketches given in examples are the actual firmware of the different Safecast
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+## Acknowledgement
 
+* [Bunnie Huang](http://www.bunniestudios.com/) for a lot of help and patience helping setting up the production.
+* [Freaklabs](http://freaklabs.org/) for a lot of help in general, and more particularly for the design of the radio and the great [chibiArduino](http://www.freaklabs.org/index.php/chibiArduino.html) library for 802.15.4 communication.
+* [Maniacbug](http://maniacbug.wordpress.com/2011/11/27/arduino-on-atmega1284p-4/) for his port of the arduino environment for the Atmega1284p that got me started.
+* [ElasticSheep](http://elasticsheep.com/2010/04/teensy2-usb-mass-storage-with-an-sd-card/) for the basis of the SD mass storage reader.
+* [LUFA](http://www.fourwalledcubicle.com/LUFA.php) for the SD mass storage reader.
+* [Adafruit](http://www.adafruit.com/) for the design around the Atmega32U4 inspired from their [breakout board](https://www.adafruit.com/products/296).
+* [SparkFun](https://www.sparkfun.com) for the Li-Poly charger inspired by their [basic charger](https://www.sparkfun.com/products/10401).
 
