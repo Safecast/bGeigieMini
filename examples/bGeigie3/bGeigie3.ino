@@ -129,7 +129,7 @@ void global_variables_init()
   str_count = 0;
   geiger_status = VOID;
 
-  serial_output_enable = 1;
+  serial_output_enable = 0;
 }
 
 /* SETUP */
@@ -276,6 +276,27 @@ void loop()
 #endif
   {
 
+    // manage LED blinking
+    if (rtc_acq == 0)
+    {
+      // always on when no clock
+      bg_led_on();
+    }
+    else if (gps_getData()->status[0] == 'V')
+    {
+      // 2 seconds blinking pattern when no GPS
+      if (millis() % 2000 < 1000)
+        bg_led_on();
+      else
+        bg_led_off();
+    }
+    else
+    {
+      // blinking is done when writing things to SD card
+      // when the GPS is locked
+      bg_led_off();
+    }
+
 #if CMD_LINE_ENABLE
     // command line loop polling routing
     cmdPoll();
@@ -377,9 +398,9 @@ void loop()
 #endif
 
         // blink if log written
-        if (sd_log_last_write == 1)
+        if (gps_getData()->status[0] == AVAILABLE)
         {
-          if (gps_getData()->status[0] == AVAILABLE)
+          if (sd_log_last_write == 1)
             blink_led(1, 100);  // blink once when GPS acquired
           else
             blink_led(2, 100);  // blink twice when GPS not available
