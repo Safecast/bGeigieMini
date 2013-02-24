@@ -1,5 +1,6 @@
 /** \file
  *
+ *      (c) 2013  Robin Scheibler, Safecast (fakufaku [at] gmail [dot] com)
  *  Header file for SDCardManager.c.
  */
 

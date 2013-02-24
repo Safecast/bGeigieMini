@@ -1,6 +1,7 @@
 
 /*
  * Copyright (c) 2006-2009 by Roland Riegel <feedback@roland-riegel.de>
+ * (c) 2013  Robin Scheibler, Safecast (fakufaku [at] gmail [dot] com)
  *
  * This file is free software; you can redistribute it and/or modify
  * it under the terms of either the GNU General Public License version 2

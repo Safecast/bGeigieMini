@@ -8,6 +8,7 @@
 
 /*
   Copyright 2012  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+        (c) 2013  Robin Scheibler, Safecast (fakufaku [at] gmail [dot] com)
 
   Permission to use, copy, modify, distribute, and sell this
   software and its documentation for any purpose is hereby granted

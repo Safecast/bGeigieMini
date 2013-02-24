@@ -6,6 +6,7 @@
 #include <limits.h>
 
 /**
+ * (c) 2013  Robin Scheibler, Safecast (fakufaku [at] gmail [dot] com)
  * Code copied mostly from arduino/wiring.c
  */
 
