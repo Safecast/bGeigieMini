@@ -644,6 +644,9 @@ void power_up()
   pinMode(MISO, INPUT);
   digitalWrite(MISO, HIGH); // pullup
 
+  digitalWrite(cs_radio, HIGH);
+  digitalWrite(cs_32u4, HIGH);
+
   // Init SD card
   sd_log_init(sd_pwr, sd_detect, cs_sd);
 

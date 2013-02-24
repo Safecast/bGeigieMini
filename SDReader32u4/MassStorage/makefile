@@ -21,6 +21,8 @@ LUFA_PATH    = ../LUFA_120730/LUFA
 CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/
 LD_FLAGS     =
 
+AVRDUDE_PROGRAMMER = usbtiny
+
 # Default target
 all:
 

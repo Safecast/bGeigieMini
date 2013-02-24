@@ -36,6 +36,7 @@
 
 #define  INCLUDE_FROM_MASSSTORAGE_C
 #include "MassStorage.h"
+#include "version.h"
 
 #include <avr/power.h>
 #include <avr/sleep.h>
@@ -102,6 +103,9 @@ void SetupHardware(void)
   // Setup serial stream
 	Serial_Init(9600, false);
   Serial_CreateStream(NULL);
+  
+  // Welcome!
+  printf("Welcome to bGeigie MassStorage Version-%s\n", version);
 
   /* configure IRQ pin and set low */
   configure_pin_irq();
@@ -134,6 +138,9 @@ void GoToSleep(void)
   DIDR1 = 0xFF;
   DIDR2 = 0xFF;
 
+  // set MISO pin as input
+  DDRB &= ~(1 << DDB3);
+
   power_twi_disable();
   power_spi_disable();
   power_usart0_disable();                                                                
@@ -161,6 +168,9 @@ void GoToSleep(void)
   DIDR0 = 0x00;   // Enable digital input buffers on all ADC0-ADC7 pins
   DIDR1 = 0x00; // Enable digital input buffer on AIN1/0
   DIDR2 = 0x00; // Enable digital input buffer on ADC8-ADC13
+  
+  // set MISO pin as input
+  DDRB &= ~(1 << DDB3);
 
   power_twi_enable();
   power_spi_enable();
