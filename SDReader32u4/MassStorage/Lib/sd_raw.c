@@ -11,6 +11,7 @@
 
 #include <string.h>
 #include <avr/io.h>
+#include <avr/wdt.h>
 #include "sd_raw.h"
 #include "Timer.h"
 
@@ -309,6 +310,11 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
       printf("Retry ");
     }
     //printf("C %hd %ld\r\n", command, arg);
+    
+    // enable the watchdog timer
+    // we need a fairly long timeout because
+    // the other processor might wake up from sleep
+    wdt_enable(WDTO_4S);
 
     LED_on();
 
@@ -329,6 +335,9 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     irq_low();
 
     LED_off();
+
+    // disable watchdog timer
+    wdt_disable();
 
     // after 255 trials, fail
     if (n_try == 0xff)
@@ -386,6 +395,12 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
           return 0;
         }
 
+      // This is 512+4 bytes to transmit
+      // Every byte takes 4us (at 2MHz SPI clock) + 20us delay in master (for processing)
+      // to transmit. Rounding up, this roughly gives a total of 13ms per 512 bytes block.
+      // Set the watchdog timer accordingly to 30ms (to have little bit of slack)
+      wdt_enable(WDTO_30MS);
+
       /* wait for data block (start byte 0xfe) */
       //while(sd_raw_rec_byte() != 0xfe);
       sd_raw_send_byte(0xef);
@@ -403,6 +418,9 @@ uint8_t sd_raw_read(offset_t offset, uint8_t* buffer, uintptr_t length)
         *cache++ = SPDR;
       }
       raw_block_address = block_address;
+
+      // Disable watchdog timer
+      wdt_disable();
 
       /* read crc16 */
       sd_raw_send_byte(0xab);
@@ -540,6 +558,12 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
         return 0;
       }
 
+    // This is 512+4 bytes to transmit
+    // Every byte takes 4us (at 2MHz SPI clock) + 20us delay in master (for processing)
+    // to transmit. Rounding up, this roughly gives a total of 13ms per 512 bytes block.
+    // Set the watchdog timer accordingly to 30ms (to have little bit of slack)
+    wdt_enable(WDTO_30MS);
+
     /* send start byte */
     sd_raw_send_byte(0xfe);
 
@@ -557,6 +581,9 @@ uint8_t sd_raw_write(offset_t offset, const uint8_t* buffer, uintptr_t length)
     { // write fail
       return 0;
     }
+
+    // disable watchdog
+    wdt_disable();
 
     buffer += write_length;
     offset += write_length;

@@ -60,6 +60,8 @@ volatile bool IsMassStoreReset = false;
 #define CONNECTED 1
 static int state = IDLE;
 
+static int SDCardManager_init_flag = 0;
+
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  enters a loop to run the application tasks in sequence.
  */
@@ -68,9 +70,6 @@ int main(void)
   // turn on interrupt
   sei();
 
-  // init timer
-  timer_init();
-
   // setup hardware
 	SetupHardware();
 
@@ -78,6 +77,14 @@ int main(void)
 	{
     if (state == CONNECTED)
     {
+      // initialize the card manager if needed
+      if (SDCardManager_init_flag == 0)
+      {
+        SDCardManager_Init();
+        SDCardManager_init_flag = 1;
+      }
+      
+      // perform necessary tasks
       MassStorage_Task();
       USB_USBTask();
     }
@@ -91,12 +98,16 @@ int main(void)
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
+  int i;
 	/* Disable watchdog if enabled by bootloader/fuses */
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
+
+  // init timer
+  timer_init();
 
 	/* Hardware Initialization */
   LED_init();
@@ -112,15 +123,17 @@ void SetupHardware(void)
   configure_pin_irq();
   irq_low();
 
+  // set the SD card manager to uninitialized
+  SDCardManager_init_flag = 0;
+
   // wait a little
-  delay(1000);
-  LED_on();
-  delay(1000);
-  LED_off();
-  delay(1000);
-  LED_on();
-  delay(1000);
-  LED_off();
+  for (i = 0 ; i < 10 ; i++)
+  {
+    LED_on();
+    delay(250);
+    LED_off();
+    delay(250);
+  }
 
   // Init USB
 	USB_Init();
@@ -131,6 +144,8 @@ void GoToSleep(void)
 {
   printf("Sleep\r\n");
   delay(10);
+
+  SDCardManager_init_flag = 0;
 
   ADCSRA &= ~(1<<ADEN); //Disable ADC                                                    
   ACSR |= (1<<ACD); //Disable the analog comparator                                      
@@ -181,9 +196,6 @@ void GoToSleep(void)
   power_timer3_enable();
 
   printf("Wake Up!\r\n");
-
-  // Init SD card manager
-	SDCardManager_Init();
 }
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs. */

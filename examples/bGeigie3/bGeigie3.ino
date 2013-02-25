@@ -75,7 +75,7 @@
 #define CMD_LINE_ENABLE 1
 #define HVPS_SENSING 0
 #define GPS_1PPS_ENABLE 0
-#define JAPAN_POST 0
+#define JAPAN_POST 1
 
 
 // Geiger rolling and total count
