@@ -205,7 +205,7 @@ void EVENT_USB_Device_Connect(void)
   state = CONNECTED;
 
 	/* Indicate USB enumerating */
-	//LED_on();
+	LED_on();
 
 	/* Reset the MSReset flag upon connection */
 	IsMassStoreReset = false;

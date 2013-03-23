@@ -192,18 +192,18 @@ uint8_t sd_raw_init()
 
   sd_raw_spi_init();
 
-  printf("Send SD on command.\r\n");
+  printf("Send SD on command... ");
 
   /* test SPI IRQ based communication */
   b = sd_raw_send_command(CMD_SD_ON, 0x12345678);
 
   if (b == 0xff)
   {
-    printf("SD on failed.\r\n");
+    printf(" failed.\r\n");
     return 0;
   }
 
-  printf("SD on success.\r\n");
+  printf(" success.\r\n");
 
   /* initialization procedure */
   sd_raw_card_type = 0;
@@ -213,8 +213,15 @@ uint8_t sd_raw_init()
 #if SD_RAW_WRITE_BUFFERING
   raw_block_written = 1;
 #endif
+
+  delay(100);
+  printf("Pre-grab first block... ");
   if(!sd_raw_read(0, raw_block, sizeof(raw_block)))
+  {
+    printf("failed.\r\n");
     return 0;
+  }
+  printf("success.\r\n");
 
   return 1;
 }
@@ -316,7 +323,7 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     // the other processor might wake up from sleep
     wdt_enable(WDTO_4S);
 
-    LED_on();
+    LED_off();
 
     /* interrupt request */
     irq_high();
@@ -334,7 +341,7 @@ uint8_t sd_raw_send_command(uint8_t command, uint32_t arg)
     /* finish interrupt request */
     irq_low();
 
-    LED_off();
+    LED_on();
 
     // disable watchdog timer
     wdt_disable();
@@ -693,9 +700,13 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
 
   memset(info, 0, sizeof(*info));
 
+  printf("Grab SD card info.\r\n");
+  uint16_t now = millis();
+
   /* read cid register */
   if(sd_raw_send_command(CMD_REQ_INFO, 0))
   {
+    printf("Grab info failed.\r\n");
     return 0;
   }
 
@@ -818,6 +829,8 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
       }
     }
   }
+
+  printf("Grab info success in %hu.\r\n", millis()-now);
 
   return 1;
 }
