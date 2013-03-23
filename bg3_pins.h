@@ -86,5 +86,6 @@ static const int led = 4;
 // use direct PORT access for fast switching of LED
 #define bg_led_on() PORTB |= _BV(PORTB4)
 #define bg_led_off() PORTB &= ~_BV(PORTB4)
+#define bg_led_toggle() PORTB ^= _BV(PORTB4)
 
 #endif /* __PIN_DEFINITION_H__ */

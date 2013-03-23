@@ -51,6 +51,8 @@
 #include <bg_pwr.h>
 #include <sd_reader_int.h>
 
+#include "blinky.h"
+
 // version header
 #include "version.h"
 
@@ -61,7 +63,8 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
-#define BATT_LOWEST_VOLTAGE 3300  // lowest voltage acceptable by power regulator
+#define BATT_LOW_VOLTAGE 3700       // indicate battery low when this voltage is reached
+#define BATT_SHUTDOWN_VOLTAGE 3300  // lowest voltage acceptable by power regulator
 
 // Radio options
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
@@ -111,6 +114,8 @@ unsigned int radio_addr = RX_ADDR_BASE;
 #if SD_READER_ENABLE
 uint8_t sd_reader_init_status = 0;
 #endif
+
+unsigned int battery_voltage = 0;
 
 // Enable Serial output
 uint8_t serial_output_enable = 0;
@@ -236,6 +241,9 @@ void setup()
   // initialize all global variables
   global_variables_init();
 
+  // switch LED on
+  blinky(BLINK_ON);
+
   // run all diagnostics
   diagnostics();
 
@@ -277,24 +285,21 @@ void loop()
   {
 
     // manage LED blinking
-    if (rtc_acq == 0)
+    if (battery_voltage < BATT_LOW_VOLTAGE)
     {
-      // always on when no clock
-      bg_led_on();
+      blinky(BLINK_BATTERY_LOW);
     }
-    else if (gps_getData()->status[0] == 'V')
+    else if (!sd_log_last_write)
     {
-      // 2 seconds blinking pattern when no GPS
-      if (millis() % 2000 < 1000)
-        bg_led_on();
-      else
-        bg_led_off();
+      blinky(BLINK_PROBLEM);
+    }
+    else if (gps_getData()->status[0] == 'A')
+    {
+      blinky(BLINK_ALL_OK);
     }
     else
     {
-      // blinking is done when writing things to SD card
-      // when the GPS is locked
-      bg_led_off();
+      blinky(BLINK_ON);
     }
 
 #if CMD_LINE_ENABLE
@@ -397,15 +402,6 @@ void loop()
         }
 #endif
 
-        // blink if log written
-        if (gps_getData()->status[0] == AVAILABLE)
-        {
-          if (sd_log_last_write == 1)
-            blink_led(1, 100);  // blink once when GPS acquired
-          else
-            blink_led(2, 100);  // blink twice when GPS not available
-        }
-
         // output through Serial too
         if (serial_output_enable)
           Serial.println(line);
@@ -447,6 +443,9 @@ void loop()
     // that way pulse count doesn't accumulate while being in
     // SD reader mode.
     hwc.start();
+
+    // also, we turn the LED off
+    blinky(BLINK_OFF);
   }
   // Unlock the SD reader after the loop
   sd_reader_unlock();
@@ -650,9 +649,8 @@ void power_up()
 {
   char tmp[25];
 
-  // blink if power up (not SD reader)
   if (!sd_reader_interrupted)
-    blink_led(3, 100);
+    blinky(BLINK_ON);
 
   // turn SD on and initialize
   sd_log_pwr_off();
@@ -709,7 +707,7 @@ void power_up()
 void shutdown()
 {
   // indicate something is happening
-  blink_led(3, 100);
+  blinky(BLINK_OFF);
 
   bg_gps_off();
   sd_log_pwr_off();
@@ -747,8 +745,8 @@ void shutdown()
 void check_battery_voltage()
 {
   
-  int batt = 1000*bgs_read_battery(); // mV
-  if (batt < BATT_LOWEST_VOLTAGE)
+  battery_voltage = 1000*bgs_read_battery(); // mV
+  if (battery_voltage < BATT_SHUTDOWN_VOLTAGE)
   {
     Serial.println("Battery level too low. Turning off.");
     bg_pwr_turn_off();
@@ -1185,13 +1183,3 @@ void truncate_JP(char *lat, char *lon)
 /* misc */
 /********/
 
-void blink_led(unsigned int N, unsigned int D)
-{
-  for (int i=0 ; i < N ; i++)
-  {
-    bg_led_on();
-    delay(D);
-    bg_led_off();
-    delay(D);
-  }
-}

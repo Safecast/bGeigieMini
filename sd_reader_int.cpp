@@ -52,7 +52,7 @@ int sd_reader_interrupted = 0;
 
 // Timeout is 30s
 unsigned long last_interrupt;
-#define SD_READER_TIMEOUT 10000
+#define SD_READER_TIMEOUT 3000
 
 // We only need to know these two commands
 /* CMD17: arg0[31:0]: data address, response R1 */
