@@ -109,6 +109,9 @@
 /* Custom command to request SD card info from master */
 #define CMD_REQ_INFO 0x3e
 
+/* Custom command to request CPU (1284p) to reset */
+#define CMD_CPU_RESET 0x3f
+
 /* Custom set of reply */
 #define R1_WAIT_RETRY 0xfa
 #define R1_SUCCESS 0x00
@@ -825,5 +828,33 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
   }
 
   return 1;
+}
+
+void sd_raw_cpu_reset(void)
+{
+  /* setup a timeout for the SPI transaction to happen */
+  /* we run the 16bit timer at 1MHz, this should give a timeout after 65ms */
+  TCNT1 = 0x0;     // reset counter
+  TCCR1B |= CS11;  // clk/8 i.e. 1MHz clock
+  TIMSK1 |= TOIE1; // set overflow interrupt
+
+  /* interrupt request */
+  irq_high();
+
+  /* send reset command via SPI */
+  SPDR = 0x40 | CMD_CPU_RESET;
+
+  /* Wait for reception complete */
+  while (!(SPSR & (1<<SPIF)) && (TIFR1 & _BV(TOV1)))
+    ;
+
+  /* delay a little to give time to CPU to reset while IRQ is high */
+  delay(30);  // 30ms should be enough
+
+  /* finish interrupt request */
+  irq_low();
+
+  /* deactivate counter */
+  TCCR1B = 0x0;
 }
 

@@ -33,6 +33,7 @@
 #include <SD.h>
 
 #include <avr/power.h>
+#include <avr/wdt.h>
 
 #include <bg_pwr.h>
 
@@ -67,6 +68,9 @@ unsigned long last_interrupt;
 /* Custom command to request CID and CSD */
 #define CMD_REQ_INFO 0x3e
 
+/* Custom commands to execute software reset of the CPU */
+#define CMD_CPU_RESET 0x3f
+
 /* indicate to 32u4 to wait and retry */
 #define R1_WAIT_RETRY 0xfa
 #define R1_SUCCESS 0x00
@@ -75,10 +79,6 @@ unsigned long last_interrupt;
 
 int sd_reader_setup()
 {
-#if DEBUG
-  configure_break_pin();
-#endif
-
   // configure global variables (to start in known state
   sd_reader_state = SD_READER_IDLE;
   sd_reader_interrupted = 0;
@@ -262,7 +262,13 @@ void sd_reader_process_interrupt()
 
   // rx command
   cmd = spi_rx_byte();
+
+  /* process RESET request immediately */
+  if (cmd == (0x40 | CMD_CPU_RESET))
+    cpu_reset();
+
   spi_delay();
+
   // rx argument
   arg = spi_rx_byte();
   spi_delay();
@@ -275,10 +281,7 @@ void sd_reader_process_interrupt()
 
   unselect_32u4();
 
-  //Serial.print(cmd, HEX);
-  //Serial.print(" ");
-  //Serial.println(arg, HEX);
-
+  /* check the SD reader has been enabled for any other command */
   if (sd_reader_state == SD_READER_DISABLED)
   {
     select_32u4();
@@ -298,11 +301,6 @@ void sd_reader_process_interrupt()
       sd_reader_state = SD_READER_ACTIVE;
     }
   }
-
-#if DEBUG
-  if (cmd == 0x0)
-    break_point();
-#endif
 
   if (SD_READER_ACTIVE)
   {
@@ -502,5 +500,12 @@ void sd_reader_get_info()
   return;
 }
 
-
+// This function uses the watchdog timer
+// to perform a clean software reset
+void cpu_reset()
+{
+  Serial.println("Received reset signal. Going down.");
+  wdt_enable(WDTO_15MS);
+  while(1);
+}
 

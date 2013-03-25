@@ -690,12 +690,12 @@ void power_up()
 #endif
 
   // run diagnostic (except when waking for SD reader)
-  if (!sd_reader_interrupted)
-    diagnostics();
+  //if (!sd_reader_interrupted)
+    //diagnostics();
 
   // ***WARNING*** turn High Voltage board ON ***WARNING***
   bg_hvps_on();
-  delay(50); // wait for power to stabilize
+  delay(10); // wait for power to stabilize
 
   // And now Start the Pulse Counter!
   hwc.start();

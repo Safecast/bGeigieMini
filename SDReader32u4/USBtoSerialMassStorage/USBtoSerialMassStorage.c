@@ -41,6 +41,7 @@
 #include <avr/power.h>
 #include <avr/sleep.h>
 #include "Lib/sd_raw_config.h"
+#include "Lib/sd_raw.h"
 #include "Lib/Timer.h"
 
 #include <LUFA/Drivers/Peripheral/Serial.h>
@@ -463,5 +464,18 @@ void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCI
 	UCSR1C = ConfigMask;
 	UCSR1A = (1 << U2X1);
 	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1));
+}
+
+/** Event handler for the CDC Class driver Host-to-Device Line Encoding Changed event.
+ *
+ *  \param[in] CDCInterfaceInfo  Pointer to the CDC class interface configuration structure being referenced
+ */
+void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t* const CDCInterfaceInfo)
+{
+	bool CurrentDTRState = (CDCInterfaceInfo->State.ControlLineStates.HostToDevice & CDC_CONTROL_LINE_OUT_DTR);
+
+  // request reset of main CPU
+	if (CurrentDTRState)
+	  sd_raw_cpu_reset();
 }
 

@@ -97,4 +97,7 @@ void sd_reader_get_info();
 extern int sd_reader_interrupted;
 void sd_reader_process_interrupt();
 
+// reset the CPU
+void cpu_reset();
+
 #endif /* __SD_READER_INT_H__ */

@@ -138,6 +138,8 @@ uint8_t sd_raw_sync(void);
 
 uint8_t sd_raw_get_info(struct sd_raw_info* info);
 
+void sd_raw_cpu_reset(void);
+
 /**
  * @}
  */
