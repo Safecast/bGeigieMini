@@ -316,7 +316,7 @@ void gps_diagnostics()
 {
 
 #define TIMEOUT 1000
-#define MAX_RETRY 10
+#define MAX_RETRY 5
 #define TMP_BUF_LEN 20
 
   char msg[20];

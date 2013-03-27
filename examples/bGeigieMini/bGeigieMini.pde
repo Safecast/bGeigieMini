@@ -49,6 +49,10 @@
 #define BMRDD_EEPROM_ID 100
 #define BMRDD_ID_LEN 3
 
+// possible types of GPS **DON'T EDIT**
+#define GPS_MTK 1
+#define GPS_CANMORE 2
+
 // radio options
 #define CHANNEL 20
 #define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
@@ -60,17 +64,18 @@
 #define VCC_LOW_LIMIT 4750
 
 // compile time options
-#define DIAGNOSTIC_ENABLE 1
-#define VOLTAGE_SENSE_ENABLE 0
-#define PLUSSHIELD 0
+#define VOLTAGE_SENSE_ENABLE 1
+#define PLUSSHIELD 1
 #define JAPAN_POST 0
-#define RADIO_ENABLE 1
-#define GPS_PROGRAMMING 1
 
-// GPS type
-#define GPS_MTK 1
-#define GPS_CANMORE 2
+// GPS type needs to be defined
 #define GPS_TYPE GPS_MTK
+
+// these compile time options are here to stay
+// just keep them to make debugging easier
+#define RADIO_ENABLE 1
+#define DIAGNOSTIC_ENABLE 1
+#define GPS_PROGRAMMING 1
 
 // make sure to include that after JAPAN_POST is defined
 #include "version.h"
@@ -150,6 +155,9 @@ void setup()
   gps_program_settings();
 #endif
 
+  // reset the watchdog timer because the GPS programming may be long
+  wdt_reset();
+
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(chipSelect, OUTPUT);
@@ -204,6 +212,9 @@ void setup()
   
   // And now Start the Pulse Counter!
   interruptCounterReset();
+
+  // reset the watchdog timer before starting.
+  wdt_reset();
 
   // Starting now!
   Serial.println("Starting now!");
@@ -706,6 +717,10 @@ void diagnostics()
   strcpy_P(tmp, PSTR("GPS type,unknown"));
 #endif
   Serial.println(tmp);
+
+#if GPS_TYPE == GPS_MTK
+  gps_diagnostics();
+#endif
 
   strcpy_P(tmp, PSTR("GPS programming,"));
   Serial.print(tmp);
