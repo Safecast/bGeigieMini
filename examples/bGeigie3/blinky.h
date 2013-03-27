@@ -9,7 +9,7 @@
 #define BLINK_ALL_OK 2
 #define BLINK_BATTERY_LOW 3
 #define BLINK_PROBLEM 4
-#define BLINK_OVF_HALFPERIOD 122
+#define BLINK_OVF_HALFPERIOD 81
 
 extern byte blink_overflow_counter;
 extern byte blink_mode;

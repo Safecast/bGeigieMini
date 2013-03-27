@@ -411,11 +411,7 @@ void loop()
 
         // write to status to SD
         if (rtc_acq != 0)
-        {
-          //sd_log_pwr_on();
           sd_log_writeln(filename, line);
-          //sd_log_pwr_off();
-        }
 
 #if RADIO_ENABLE
         // send out wirelessly. first wake up the radio, do the transmit, then go back to sleep
@@ -649,59 +645,51 @@ void power_up()
 {
   char tmp[25];
 
+#if SD_READER_ENABLE
   if (!sd_reader_interrupted)
+  {
+#endif
+
     blinky(BLINK_ON);
 
-  // turn SD on and initialize
-  sd_log_pwr_off();
-  delay(10);
-  sd_log_pwr_on();
-  pinMode(cs_sd, OUTPUT);
-  digitalWrite(cs_sd, HIGH);
-  pinMode(MOSI, OUTPUT);
-  pinMode(SCK, OUTPUT);
-  pinMode(MISO, INPUT);
-  digitalWrite(MISO, HIGH); // pullup
-
-  digitalWrite(cs_radio, HIGH);
-  digitalWrite(cs_32u4, HIGH);
-
-  // Init SD card
-  sd_log_init(sd_pwr, sd_detect, cs_sd);
-
-  // flush Serial1 (GPS) before restarting GPS
-  while(Serial1.available())
-    Serial1.read();
-
-  // turn GPS on and set status to not acquired yet
-  bg_gps_on();
-
-  // initialize sensors
-  bg_sensors_on();
-
-  // initialize all global variables
-  // set initial states of GPS, log file, Geiger counter, etc.
-  global_variables_init();
-
+    // Init SD card
+    sd_log_init(sd_pwr, sd_detect, cs_sd);
 #if SD_READER_ENABLE
-  // initialize SD reader
-  if (!sd_reader_interrupted)
     sd_reader_init_status = sd_reader_setup();
 #endif
 
-  // run diagnostic (except when waking for SD reader)
-  //if (!sd_reader_interrupted)
+    // flush Serial1 (GPS) before restarting GPS
+    while(Serial1.available())
+      Serial1.read();
+
+    // turn GPS on and set status to not acquired yet
+    bg_gps_on();
+
+    // initialize sensors
+    bg_sensors_on();
+
+    // initialize all global variables
+    // set initial states of GPS, log file, Geiger counter, etc.
+    global_variables_init();
+
+    // run diagnostic (except when waking for SD reader)
+    //if (!sd_reader_interrupted)
     //diagnostics();
 
-  // ***WARNING*** turn High Voltage board ON ***WARNING***
-  bg_hvps_on();
-  delay(10); // wait for power to stabilize
+    // ***WARNING*** turn High Voltage board ON ***WARNING***
+    bg_hvps_on();
+    delay(10); // wait for power to stabilize
 
-  // And now Start the Pulse Counter!
-  hwc.start();
+    // And now Start the Pulse Counter!
+    hwc.start();
 
-  // Starting now!
-  Serial.println("bGeigie powered on!");
+    // Starting now!
+    Serial.println("bGeigie powered on!");
+
+#if SD_READER_ENABLE
+  }
+#endif
+
 }
 
 void shutdown()
@@ -710,35 +698,14 @@ void shutdown()
   blinky(BLINK_OFF);
 
   bg_gps_off();
-  sd_log_pwr_off();
   chibiSleepRadio(1);
   bg_hvps_off();
   bg_sensors_off();
   bg_led_off();
 
-  digitalWrite(cs_sd, LOW);
-  pinMode(cs_sd, INPUT);
-  digitalWrite(MOSI, LOW);
-  pinMode(MOSI, INPUT);
-  digitalWrite(SCK, LOW);
-  pinMode(SCK, INPUT);
-  digitalWrite(MISO, LOW);
-  pinMode(MISO, INPUT);
-
-  // we turn all pins to input no pull-up to save power
-  // this will also turn off all the peripherals
-  // automatically via external pull-up resistors
-  /*
-  for (int i=0 ; i < NUM_DIGITAL_PINS ; i++)
-  {
-    digitalWrite(i, LOW);
-    pinMode(i, INPUT);
-  }
-  */
-
   // say goodbye...
   Serial.println("bGeigie sleeps... good night.");
-  delay(20);
+  delay(10);
   Serial.flush();
 }
 
@@ -1177,9 +1144,4 @@ void truncate_JP(char *lat, char *lon)
 
 }
 #endif /* JAPAN_POST */
-
-
-/********/
-/* misc */
-/********/
 

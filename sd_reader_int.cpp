@@ -264,8 +264,10 @@ void sd_reader_process_interrupt()
   cmd = spi_rx_byte();
 
   /* process RESET request immediately */
+#ifdef SOFT_RESET
   if (cmd == (0x40 | CMD_CPU_RESET))
     cpu_reset();
+#endif
 
   spi_delay();
 
@@ -502,10 +504,12 @@ void sd_reader_get_info()
 
 // This function uses the watchdog timer
 // to perform a clean software reset
+#ifdef SOFT_RESET
 void cpu_reset()
 {
   Serial.println("Received reset signal. Going down.");
   wdt_enable(WDTO_15MS);
   while(1);
 }
+#endif
 
