@@ -70,9 +70,6 @@
 	/* Function Prototypes: */
 		void SetupHardware(void);
     void GoToSleep(void);
-		void CheckJoystickMovement(void);
-    void WriteUSBStream(char *string);
-    void USB_to_USART_Tasks(void);
 
 		void EVENT_USB_Device_Connect(void);
 		void EVENT_USB_Device_Disconnect(void);

@@ -125,6 +125,10 @@ static uint8_t      USARTtoUSB_Buffer_Data[128];
 static int state = IDLE;
 static int SDCardManager_init_flag = 0;
 
+#ifdef SOFT_RESET
+static int serial_reset_flag = 0;
+#endif
+
 /** Main program entry point. This routine contains the overall program flow, including initial
  *  setup of all components and the main program loop.
  */
@@ -172,8 +176,14 @@ int main(void)
         SDCardManager_init_flag = 1;
       }
 
-      /* Must throw away unused bytes from the host, or it will lock up while waiting for the device */
-      //CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
+#ifdef SOFT_RESET
+      // If a Serial reset is requested
+      if (serial_reset_flag)
+      {
+        sd_raw_cpu_reset();
+        serial_reset_flag = 0;
+      }
+#endif
 
       /***********************************/
       /** Start USB to USART processing **/
@@ -325,32 +335,6 @@ void GoToSleep(void)
   //printf("Wake Up!\r\n");
 }
 
-/** Example function to write to Serial stream */
-void WriteUSBStream(char *string)
-{
-	char*       ReportString  = NULL;
-
-	if (ReportString != NULL)
-	{
-		/* Write the string to the virtual COM port via the created character stream */
-		fputs(ReportString, &USBSerialStream);
-
-		/* Alternatively, without the stream: */
-		// CDC_Device_SendString(&VirtualSerial_CDC_Interface, ReportString);
-	}
-}
-
-// Example of echo serial data
-void EchoSerial(void)
-{
-  // Echo on virtual serial
-  if (CDC_Device_BytesReceived(&VirtualSerial_CDC_Interface)) 
-  { 
-    CDC_Device_SendByte(&VirtualSerial_CDC_Interface, CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface)); 
-  } 
-}
-
-
 /** Event handler for the library USB Connection event. */
 void EVENT_USB_Device_Connect(void)
 {
@@ -459,6 +443,10 @@ void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCI
 
 	/* Set the new baud rate before configuring the USART */
 	UBRR1  = SERIAL_2X_UBBRVAL(CDCInterfaceInfo->State.LineEncoding.BaudRateBPS);
+  // The arduino firmware does that:
+	//UBRR1  = (CDCInterfaceInfo->State.LineEncoding.BaudRateBPS == 57600)
+			 //? SERIAL_UBBRVAL(CDCInterfaceInfo->State.LineEncoding.BaudRateBPS)
+			 //: SERIAL_2X_UBBRVAL(CDCInterfaceInfo->State.LineEncoding.BaudRateBPS);	
 
 	/* Reconfigure the USART in double speed mode for a wider baud rate range at the expense of accuracy */
 	UCSR1C = ConfigMask;
@@ -466,6 +454,7 @@ void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCI
 	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1));
 }
 
+#if SOFT_RESET
 /** Event handler for the CDC Class driver Host-to-Device Line Encoding Changed event.
  *
  *  \param[in] CDCInterfaceInfo  Pointer to the CDC class interface configuration structure being referenced
@@ -476,6 +465,7 @@ void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t* const C
 
   // request reset of main CPU
 	if (CurrentDTRState)
-	  sd_raw_cpu_reset();
+	  serial_reset_flag = 1;
 }
+#endif
 

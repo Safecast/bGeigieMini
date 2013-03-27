@@ -830,13 +830,14 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
   return 1;
 }
 
+#if SOFT_RESET
 void sd_raw_cpu_reset(void)
 {
   /* setup a timeout for the SPI transaction to happen */
   /* we run the 16bit timer at 1MHz, this should give a timeout after 65ms */
   TCNT1 = 0x0;     // reset counter
-  TCCR1B |= CS11;  // clk/8 i.e. 1MHz clock
-  TIMSK1 |= TOIE1; // set overflow interrupt
+  TCCR1B |= _BV(CS11);  // clk/8 i.e. 1MHz clock
+  TIMSK1 |= _BV(TOIE1); // set overflow interrupt
 
   /* interrupt request */
   irq_high();
@@ -848,13 +849,22 @@ void sd_raw_cpu_reset(void)
   while (!(SPSR & (1<<SPIF)) && (TIFR1 & _BV(TOV1)))
     ;
 
-  /* delay a little to give time to CPU to reset while IRQ is high */
-  delay(30);  // 30ms should be enough
-
-  /* finish interrupt request */
-  irq_low();
-
-  /* deactivate counter */
+  /* stop first timer */
   TCCR1B = 0x0;
+  TIFR1 |= _BV(TOV1);
+
+  /* reset counter with 2s delay this time */
+  TCNT3 = 0x0;     // reset counter
+  //TCCR3B |= _BV(CS32);  // clk/256 i.e. 31.25kHz clock
+  TCCR3B |= _BV(CS32) | _BV(CS31);  // clk/1024 i.e. timeout 8s
+  TIMSK3 |= _BV(TOIE3); // set overflow interrupt
 }
+
+ISR(TIMER3_OVF_vect)
+{
+  // pull irq low and reset counter
+  irq_low();
+  TCCR3B = 0x0;
+}
+#endif
 
