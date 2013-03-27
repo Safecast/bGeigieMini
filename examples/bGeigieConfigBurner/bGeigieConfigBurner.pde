@@ -63,34 +63,43 @@ void pullDevId()
 /* set new device id in EEPROM */
 void cmdSetId(int arg_cnt, char **args)
 {
-  if (arg_cnt != 2)
-  {
-    Serial.print("Synthax: setid <id>    id is ");
-    Serial.print(BMRDD_ID_LEN);
-    Serial.println(" characters long");
-    return;
-  }
-
+  char tmp[40];
   int len = 0;
+
+  if (arg_cnt != 2)
+    goto errorSetId;
+
   while (args[1][len] != NULL)
     len++;
 
   if (len != BMRDD_ID_LEN)
-  {
-    Serial.print("Synthax: setid <id>     id is ");
-    Serial.print(BMRDD_ID_LEN);
-    Serial.println(" characters long");
-    return;
-  } 
+    goto errorSetId;
 
+  // write ID to EEPROM
   for (int i=0 ; i < BMRDD_ID_LEN ; i++)
-  {
     EEPROM.write(BMRDD_EEPROM_ID+i, byte(args[1][i]));
-    dev_id[i] = args[1][i];
-  }
-  Serial.print("Device id: ");
-  Serial.println(dev_id);
+
+  // pull dev id from the EEPROM so that we check it was successfully written
+  pullDevId();
+  strcpy_P(tmp, PSTR("Device id: "));
+  Serial.print(tmp);
+  Serial.print(dev_id);
+  if (strncmp(dev_id, args[1], BMRDD_ID_LEN) == 0)
+    strcpy_P(tmp, PSTR(" - success."));
+  else
+    strcpy_P(tmp, PSTR(" - failure."));
+  Serial.println(tmp);
+    
+  return; // happyily
+
+errorSetId:
+  strcpy_P(tmp, PSTR("Synthax: setid <id>     id is "));
+  Serial.print(tmp);
+  Serial.print(BMRDD_ID_LEN);
+  strcpy_P(tmp, PSTR(" characters long"));
+  Serial.println(tmp);
 }
+
 
 void cmdGetId(int arg_cnt, char **args)
 {
