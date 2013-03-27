@@ -31,6 +31,10 @@
 #include "HardwareCounter.h"
 #include <limits.h>
 
+// need to have the global variable to count
+// overflows
+unsigned int g_ovf_n;
+
 // Constructor
 HardwareCounter::HardwareCounter(int timer_pin, long delay)
 {
@@ -49,12 +53,17 @@ void HardwareCounter::start()
   // hardware counter setup ( refer atmega168.pdf chapter 16-bit counter1)
   TCCRnA=0;     // reset timer/countern control register A
   TCCRnB=0;     // reset timer/countern control register A
+
   // set timer/counter1 hardware as counter , counts events on pin Tn ( arduino pin 5 on 168, pin 47 on Mega )
   // normal mode, wgm10 .. wgm13 = 0
   sbi (TCCRnB ,CS10);  // External clock source on Tn pin. Clock on rising edge.
   sbi (TCCRnB ,CS11);
   sbi (TCCRnB ,CS12);
+  // start counting now
   TCCRnB = TCCRnB | 7;  //  Counter Clock source = pin Tn , start counting now
+
+  // set overflow interrupt
+  TIMSKn |= _BV(TOIEn);
 
   // set start time
   _start_time = millis();
@@ -63,18 +72,21 @@ void HardwareCounter::start()
   // the counter is setup (This is important)!
   TCNTn=0;      // counter value = 0
 
+  // reset number of overflow
+  g_ovf_n = 0;
+
   // set count to zero (optional)
   _count = 0;
 }
 
 // call this to read the current count and save it
-unsigned int HardwareCounter::count()
+unsigned long HardwareCounter::count()
 {
 
   TCCRnB = TCCRnB & ~7;   // Gate Off  / Counter Tn stopped
   _count = TCNTn;         // Set the count in object variable
   TCCRnB = TCCRnB | 7;    // restart counting
-  return _count;
+  return 0xfffful*g_ovf_n + _count;
 
 }
 
@@ -90,4 +102,10 @@ int HardwareCounter::available()
     return (ULONG_MAX + now - _start_time >= _delay);
 }
 
+// This takes care of the counter overflow problem
+ISR(TIMERn_OVF_vect)
+{
+  // increment number of overflows
+  g_ovf_n++;
+}
 

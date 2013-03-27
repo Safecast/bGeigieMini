@@ -43,19 +43,14 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
-#if defined(__AVR_ATmega1280__)
-#define TCCRnA TCCR5A
-#define TCCRnB TCCR5B
-#define TCNTn  TCNT5
-#define TIFRn  TIFR5
-#define TOVn   TOV5
-#else
 #define TCCRnA TCCR1A
 #define TCCRnB TCCR1B
 #define TCNTn  TCNT1
 #define TIFRn  TIFR1
 #define TOVn   TOV1
-#endif
+#define TIMSKn TIMSK1
+#define TOIEn  TOIE1
+#define TIMERn_OVF_vect TIMER1_OVF_vect
 
 // Defining the Class for the counter
 class HardwareCounter
@@ -65,7 +60,7 @@ class HardwareCounter
     HardwareCounter(int timer_pin, long delay);
     void start();
     int available();
-    unsigned int count();
+    unsigned long count();
 
   // privatee
   private:
