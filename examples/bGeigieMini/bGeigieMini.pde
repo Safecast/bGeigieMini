@@ -35,7 +35,7 @@
 #include <EEPROM.h>
 #include <GPS.h>
 #include <InterruptCounter.h>
-#include <math.h>
+//#include <math.h>
 #include <avr/wdt.h>
 
 #include <sd_logger.h>
@@ -64,8 +64,8 @@
 #define VCC_LOW_LIMIT 4750
 
 // compile time options
-#define VOLTAGE_SENSE_ENABLE 1
-#define PLUSSHIELD 1
+#define VOLTAGE_SENSE_ENABLE 0
+#define PLUSSHIELD 0
 #define JAPAN_POST 0
 
 // GPS type needs to be defined
@@ -76,6 +76,30 @@
 #define RADIO_ENABLE 1
 #define DIAGNOSTIC_ENABLE 1
 #define GPS_PROGRAMMING 1
+
+// Put some strings in flash memory to save memory
+const char str_yes[] PROGMEM = "yes";
+const char str_no[] PROGMEM = "no";
+const char str_comment[] PROGMEM = "# ";
+const char str_welcome[] PROGMEM = "Welcome to bGeigie-Mini";
+const char str_version[] PROGMEM = "Version,";
+const char str_gps_type[] PROGMEM = "GPS type,";
+const char str_gps_mtk[] PROGMEM = "MTK";
+const char str_gps_canmore[] PROGMEM = "Canmore";
+const char str_gps_unknown[] PROGMEM = "?";
+const char str_radio[] PROGMEM = "Radio";
+const char str_SD[] PROGMEM = "SD";
+const char str_enabled[] PROGMEM = " enabled,";
+const char str_init[] PROGMEM = " init,";
+const char str_inserted[] PROGMEM = " inserted,";
+const char str_file_rw[] PROGMEM = " RW,";
+const char str_address[] PROGMEM = " address,";
+const char str_channel[] PROGMEM = " channel,";
+const char str_open_file[] PROGMEM = " open file,";
+const char str_gps_prog[] PROGMEM = "GPS prog,";
+const char str_voltage_sense[] PROGMEM = "Voltage sense,";
+const char str_coord_trunc[] PROGMEM = "Coordinate truncation,";
+const char str_plus_shield[] PROGMEM = "PlusShield,";
 
 // make sure to include that after JAPAN_POST is defined
 #include "version.h"
@@ -322,7 +346,7 @@ void loop()
           strcpy(filename+8, ext_log);
 
           // write the header and options to the new file
-          sd_log_init(sdPwr, sd_cd, chipSelect);
+          //sd_log_init(sdPwr, sd_cd, chipSelect);
           writeHeader2SD(filename);
 
 #if DIAGNOSTIC_ENABLE
@@ -351,7 +375,7 @@ void loop()
 #endif
       {
         // dump data to SD card
-        sd_log_init(sdPwr, sd_cd, chipSelect);
+        //sd_log_init(sdPwr, sd_cd, chipSelect);
         strcpy(filename+8, ext_log);
         sd_log_writeln(filename, line);
 
@@ -369,7 +393,7 @@ void loop()
 #endif
       {
         // write to backup file as well
-        sd_log_init(sdPwr, sd_cd, chipSelect);
+        //sd_log_init(sdPwr, sd_cd, chipSelect);
         strcpy(filename+8, ext_bak);
         sd_log_writeln(filename, line);
       }
@@ -573,84 +597,90 @@ void writeHeader2SD(char *filename)
 {
   char tmp[50];
 
-  sd_log_init(sdPwr, sd_cd, chipSelect);
+  //sd_log_init(sdPwr, sd_cd, chipSelect);
 
-  strcpy_P(tmp, PSTR("# Welcome to Safecast bGeigie-Mini System"));
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_welcome);
   sd_log_writeln(filename, tmp);
 
-  strcpy_P(tmp, PSTR("# Version,"));
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_version);
   strcat(tmp, version);
   sd_log_writeln(filename, tmp);
 
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_gps_type);
 #if GPS_TYPE == GPS_CANMORE
-  strcpy_P(tmp, PSTR("# GPS type,Canmore"));
+  strcat_P(tmp, str_gps_canmore);
 #elif GPS_TYPE == GPS_MTK
-  strcpy_P(tmp, PSTR("# GPS type,MTK"));
+  strcat_P(tmp, str_gps_mtk);
 #else
-  strcpy_P(tmp, PSTR("# GPS type,unknown"));
+  strcat_P(tmp, str_gps_unknown);
 #endif
   sd_log_writeln(filename, tmp);
 
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_radio);
+  strcat_P(tmp, str_enabled);
 #if RADIO_ENABLE
-  strcpy_P(tmp, PSTR("# Radio enabled,yes"));
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("# Radio enabled,no"));
+  strcat_P(tmp, str_no);
 #endif
   sd_log_writeln(filename, tmp);
 
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_gps_prog);
 #if GPS_PROGRAMMING
-  strcpy_P(tmp, PSTR("# GPS programming,yes"));
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("# GPS programming,no"));
+  strcat_P(tmp, str_no);
 #endif
   sd_log_writeln(filename, tmp);
   
-#if DIAGNOSTIC_ENABLE
-  strcpy_P(tmp, PSTR("# Diagnostic file,yes"));
-  sd_log_writeln(filename, tmp);
-#else
-  strcpy_P(tmp, PSTR("# Diagnostic file,no"));
-  sd_log_writeln(filename, tmp);
-#endif
-
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_voltage_sense);
 #if VOLTAGE_SENSE_ENABLE
-  strcpy_P(tmp, PSTR("# Voltage sense,yes"));
+  strcat_P(tmp, str_yes);
   sd_log_writeln(filename, tmp);
   // battery voltage
   int v0 = (int)(1000*read_voltage(pinV0));
   v0 = (int)(1000*read_voltage(pinV0)); // read 2nd time for stable value
-  sprintf_P(tmp, PSTR("# Battery voltage,%dmV"), v0);
+  sprintf_P(tmp, PSTR("# Vbat,%d"), v0);
   sd_log_writeln(filename, tmp);
 
   // boost voltage
   int v1 = (int)(1000*read_voltage(pinV1));
   v1 = (int)(1000*read_voltage(pinV1)); // read 2nd time for stable value
-  sprintf_P(tmp, PSTR("# Supply voltage,%dmV"), v1);
+  sprintf_P(tmp, PSTR("# Vcc,%d"), v1);
   sd_log_writeln(filename, tmp);
 #else
-  strcpy_P(tmp, PSTR("# Voltage sense,no"));
+  strcat_P(tmp, str_no);
   sd_log_writeln(filename, tmp);
 #endif
 
   // System free RAM
-  sprintf_P(tmp, PSTR("# System free RAM,%dB"), FreeRam());
+  sprintf_P(tmp, PSTR("# Free RAM,%dB"), FreeRam());
   sd_log_writeln(filename, tmp);
 
+  
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_coord_trunc);
 #if JAPAN_POST
-  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
-  sd_log_writeln(filename, tmp);
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,no"));
-  sd_log_writeln(filename, tmp);
+  strcat_P(tmp, str_no);
 #endif
+  sd_log_writeln(filename, tmp);
 
+  strcpy_P(tmp, str_comment);
+  strcat_P(tmp, str_plus_shield);
 #if PLUSSHIELD
-  strcpy_P(tmp, PSTR("# PlusShield,yes"));
-  sd_log_writeln(filename, tmp);
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("# PlusShield,no"));
-  sd_log_writeln(filename, tmp);
+  strcat_P(tmp, str_no);
 #endif
+  sd_log_writeln(filename, tmp);
 }
 
 /**********************/
@@ -661,133 +691,182 @@ void diagnostics()
 {
   char tmp[50];
 
-  strcpy_P(tmp, PSTR("--- Diagnostic START ---"));
-  Serial.println(tmp);
-
-  strcpy_P(tmp, PSTR("bGeigie-mini System"));
+  strcpy_P(tmp, str_welcome);
   Serial.println(tmp);
 
   // Version number
-  strcpy_P(tmp, PSTR("Version,"));
+  strcpy_P(tmp, str_version);
   Serial.print(tmp);
   Serial.println(version);
 
   // Device ID
-  strcpy_P(tmp, PSTR("Device ID,"));
+  strcpy_P(tmp, PSTR("ID,"));
   Serial.print(tmp);
   Serial.println(dev_id);
 
   // SD card
-  sd_log_card_diagnostic();  
+  sd_diagnostic();  
 
+  strcpy_P(tmp, str_radio);
+  strcat_P(tmp, str_enabled);
 #if RADIO_ENABLE
   // basic radio operations
-  strcpy_P(tmp, PSTR("Radio enabled,yes"));
+  strcat_P(tmp, str_yes);
   Serial.println(tmp);
-  strcpy_P(tmp, PSTR("Radio initialized,"));
+  strcpy_P(tmp, str_radio);
+  strcat_P(tmp, str_init);
   Serial.print(tmp);
   if (radio_init_status)
   {
-    strcpy_P(tmp, PSTR("yes"));
+    strcpy_P(tmp, str_yes);
     Serial.println(tmp);
   }
   else
   {
-    strcpy_P(tmp, PSTR("no"));
+    strcpy_P(tmp, str_no);
     Serial.println(tmp);
   }
   chibiSleepRadio(0);
-  strcpy_P(tmp, PSTR("Radio address,"));
+  strcpy_P(tmp, str_radio);
+  strcat_P(tmp, str_address);
   Serial.print(tmp);
   Serial.println(chibiGetShortAddr(), HEX);
-  strcpy_P(tmp, PSTR("Radio channel,"));
+  strcpy_P(tmp, str_radio);
+  strcat_P(tmp, str_channel);
   Serial.print(tmp);
   Serial.println(chibiGetChannel());
   chibiSleepRadio(1);
 #else
-  strcpy_P(tmp, PSTR("Radio enabled,no"));
+  strcpy_P(tmp, str_no);
   Serial.println(tmp);
 #endif
 
+  strcpy_P(tmp, str_gps_type);
 #if GPS_TYPE == GPS_CANMORE
-  strcpy_P(tmp, PSTR("GPS type,Canmore"));
+  strcat_P(tmp, str_gps_canmore);
 #elif GPS_TYPE == GPS_MTK
-  strcpy_P(tmp, PSTR("GPS type,MTK"));
+  strcat_P(tmp, str_gps_mtk);
 #else
-  strcpy_P(tmp, PSTR("GPS type,unknown"));
+  strcat_P(tmp, str_gps_unknown);
 #endif
   Serial.println(tmp);
 
-#if GPS_TYPE == GPS_MTK
-  gps_diagnostics();
-#endif
-
-  strcpy_P(tmp, PSTR("GPS programming,"));
+  strcpy_P(tmp, str_gps_prog);
   Serial.print(tmp);
 #if GPS_PROGRAMMING
-  strcpy_P(tmp, PSTR("yes"));
+  strcpy_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("no"));
+  strcpy_P(tmp, str_no);
 #endif
   Serial.println(tmp);
 
-#if DIAGNOSTIC_ENABLE
-  strcpy_P(tmp, PSTR("Diagnostic file,yes"));
-#else
-  strcpy_P(tmp, PSTR("Diagnostic file,no"));
-#endif
-  Serial.println(tmp);
-
+  strcpy_P(tmp, str_voltage_sense);
 #if VOLTAGE_SENSE_ENABLE
-  strcpy_P(tmp, PSTR("Voltage sense,yes"));
+  strcat_P(tmp, str_yes);
   Serial.println(tmp);
 
   // battery voltage
   int v0 = (int)(1000*read_voltage(pinV0));
   v0 = (int)(1000*read_voltage(pinV0)); // read 2nd time for stable value
-  strcpy_P(tmp, PSTR("Battery voltage,"));
+  strcpy_P(tmp, PSTR("Vbat,"));
   Serial.print(tmp);
-  Serial.print(v0);
-  strcpy_P(tmp, PSTR("mV"));
-  Serial.println(tmp);
+  Serial.println(v0);
 
   // boost voltage
   int v1 = (int)(1000*read_voltage(pinV1));
   v1 = (int)(1000*read_voltage(pinV1)); // read 2nd time for stable value
-  strcpy_P(tmp, PSTR("Supply voltage,"));
+  strcpy_P(tmp, PSTR("Vcc,"));
   Serial.print(tmp);
-  Serial.print(v1);
-  strcpy_P(tmp, PSTR("mV"));
-  Serial.println(tmp);
+  Serial.println(v1);
 #else
-  strcpy_P(tmp, PSTR("Voltage sense,no"));
+  strcat_P(tmp, str_no);
   Serial.println(tmp);
 #endif
 
   // System free RAM
-  strcpy_P(tmp, PSTR("System free RAM,"));
+  strcpy_P(tmp, PSTR("Free RAM,"));
   Serial.print(tmp);
   Serial.print(FreeRam());
   Serial.println('B');
 
+  strcpy_P(tmp, str_coord_trunc);
 #if JAPAN_POST
-  strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
+  strcat_P(tmp, str_no);
 #endif
   Serial.println(tmp);
 
+  strcpy_P(tmp, str_plus_shield);
 #if PLUSSHIELD
-  strcpy_P(tmp, PSTR("PlusShield,yes"));
+  strcat_P(tmp, str_yes);
 #else
-  strcpy_P(tmp, PSTR("PlusShield,no"));
+  strcat_P(tmp, str_no);
 #endif
-  Serial.println(tmp);
-  
-  strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
   Serial.println(tmp);
 }
 
+void sd_diagnostic()
+{
+  char tmp_file[13];
+  char tmp[50];
+
+  // check if Card is inserted
+  strcpy_P(tmp, str_SD);
+  strcat_P(tmp, str_inserted);
+  if (sd_log_card_missing())
+    strcat_P(tmp, str_no);
+  else
+    strcat_P(tmp, str_yes);
+  Serial.println(tmp);
+
+  // see if the card can be initialized:
+  strcpy_P(tmp, str_SD);
+  strcat_P(tmp, str_init);
+  if (sd_log_initialized)
+    strcat_P(tmp, str_yes);
+  else
+    strcat_P(tmp, str_no);
+  Serial.println(tmp);
+
+  // Test file read/write (the name is for a hidden file)
+  strcpy_P(tmp_file, PSTR("TEST"));
+  strcpy_P(tmp, PSTR("test"));
+  sd_log_writeln(tmp_file, tmp);
+
+  // file open
+  strcpy_P(tmp, str_SD);
+  strcat_P(tmp, str_open_file);
+  if (sd_log_file_open)
+  {
+    strcat_P(tmp, str_yes);
+    // don't delete file because
+    // the routine to do that takes to much
+    // space in the flash
+    /*
+    if (!(SD.remove(tmp_file)))
+    {
+      strcpy_P(tmp, PSTR("SD test : can't remove test file"));
+      Serial.println(tmp);
+    }
+    */
+  }
+  else
+  {
+    strcat_P(tmp, str_no);
+  }
+  Serial.println(tmp);
+
+  // SD R/W
+  strcpy_P(tmp, str_SD);
+  strcat_P(tmp, str_file_rw);
+  if (sd_log_last_write)
+    strcat_P(tmp, str_yes);
+  else
+    strcat_P(tmp, str_no);
+  Serial.println(tmp);
+
+}
 
 #if JAPAN_POST
 /* 
@@ -847,10 +926,31 @@ void truncate_JP(char *lat, char *lon)
   lon[9] = '0' + (minutes%10);
 
 }
+
+#if 0
+float taylor_cos(float angle, int precision)
+{
+  float numerator = 1.;
+  float denominator = 1.;
+  float r = 1.;
+  float angle2 = -angle*angle;
+  int n = 1;
+
+  while (n < precision)
+  {
+    numerator *= angle2;
+    denominator *= 2*n*(2*n-1);
+    r += numerator/denominator;
+    n++;
+  }
+
+  return r;
+}
+#endif
 #endif /* JAPAN_POST */
 
 
-#if DIAGNOSTIC_ENABLE
+#if VOLTAGE_SENSE_ENABLE
 float read_voltage(int pin)
 {
   return 1.1*analogRead(pin)/1023. * 10.1;
