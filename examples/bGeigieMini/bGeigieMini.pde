@@ -64,8 +64,8 @@
 #define VCC_LOW_LIMIT 4750
 
 // compile time options
-#define VOLTAGE_SENSE_ENABLE 0
-#define PLUSSHIELD 0
+#define VOLTAGE_SENSE_ENABLE 1
+#define PLUSSHIELD 1
 #define JAPAN_POST 0
 
 // GPS type needs to be defined
