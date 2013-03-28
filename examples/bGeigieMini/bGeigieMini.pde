@@ -625,7 +625,7 @@ void writeHeader2SD(char *filename)
   // boost voltage
   int v1 = (int)(1000*read_voltage(pinV1));
   v1 = (int)(1000*read_voltage(pinV1)); // read 2nd time for stable value
-  sprintf_P(tmp, PSTR("# Supply voltage,%dmV"), v0);
+  sprintf_P(tmp, PSTR("# Supply voltage,%dmV"), v1);
   sd_log_writeln(filename, tmp);
 #else
   strcpy_P(tmp, PSTR("# Voltage sense,no"));
