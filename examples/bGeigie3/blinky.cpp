@@ -1,3 +1,5 @@
+#ifndef __BLINKY_H__
+#define __BLINKY_H__
 
 #include "blinky.h"
 
@@ -72,10 +74,7 @@ void blinky(byte mode)
     TCCR2B |= (1 << CS21) | (1 << CS20);  // 125ms blink period (clk/32)
   else
     bg_led_off();
-  /*
-  else if (blink_mode == BLINK_BATTERY_LOW)
-    TCCR2B |= (1 << CS22) | (1 << CS20);  // 500ms blink period (clk/128)
-    */
 
 }
 
+#endif /* __BLINKY_H__ */
