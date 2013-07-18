@@ -122,6 +122,17 @@ The checksum is then always encoded as a string of two ASCII characters giving t
 2. [Download](https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121019-macosx.zip) and install Patched Arduino IDE Arduino's website provides help [getting started](http://arduino.cc/en/Guide/MacOSX), if needed.
 3. [Download](https://github.com/Safecast/SafecastBGeigie/zipball/NextGeneration) and install SafecastBGeigie library in the Arduino library folder. [Arduino libraries help](http://arduino.cc/en/Guide/Libraries).
 
+As an alternative to 1. it is possible to obtain avr-gcc and avrdude through
+[homebrew](http://mxcl.github.io/homebrew/). The package is not available directly
+but can be obtained from a [third party](https://github.com/larsimmisch/homebrew-avr).
+This assumes you already have homebrew installed.
+
+    brew tap larsimmisch/avr 
+    brew install avr-libc
+    brew install avrdude --with-usb
+
+(Instructions from [here](http://www.rocketnumbernine.com/2011/12/16/installing-avr-gcc-on-osx). Tested on Mac OS X Mountain Lion 10.8.4))
+
 ### Upload bootloader to main microcontroller
 
 1. Launch the Arduino-Safecast IDE
