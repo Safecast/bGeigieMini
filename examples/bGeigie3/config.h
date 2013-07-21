@@ -43,7 +43,15 @@
 extern config_t theConfig;
 
 /* all the function definitions */
-void pushToEEPROM(int addr, uint8_t *ptr, size_t len);
+void config_init();
+void config_update();
+int pullFromFile();
+int pushToFile();
 void pullFromEEPROM(int addr, uint8_t *ptr, size_t len);
+void pushToEEPROM(int addr, uint8_t *ptr, size_t len);
+
+/* helper functions */
+int readNextLine(File *file, char *buf, int max_len);
+int writeKeyVal(File *file, char *key, char *val);
 
 #endif /* __CONFIG_H__ */

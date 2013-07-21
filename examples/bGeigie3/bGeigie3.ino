@@ -96,7 +96,6 @@ unsigned int battery_voltage = 0;
 // radio variables
 #if RADIO_ENABLE
 uint8_t radio_init_status = 0;
-unsigned int radio_addr = RX_ADDR_BASE;
 #endif
 
 // SD reader variables
@@ -182,16 +181,16 @@ void setup()
   sd_reader_init_status = sd_reader_setup();
 #endif
 
-  // set device id
-  pullDevId();
+  // Initialize configuration
+  config_init();
 
 #if RADIO_ENABLE
   // init chibi on channel normally 20
+  uint16_t radio_addr = RX_ADDR_BASE + (uint16_t)theConfig.id;  // generate radio address based on device id
   radio_init_status = chibiInit();  // init the radio
-  chibiSetChannel(CHANNEL); // choose the channel
-  radio_addr = getRadioAddr();    // generate radio address based on device id
-  chibiSetShortAddr(radio_addr);  // set the address
-  chibiSleepRadio(1);       // sleep the radio
+  chibiSetChannel(CHANNEL);         // choose the channel
+  chibiSetShortAddr(radio_addr);    // set the address
+  chibiSleepRadio(1);               // sleep the radio
 #endif
 
   // ***WARNING*** turn High Voltage board ON ***WARNING***
@@ -348,7 +347,7 @@ void loop()
         }
         
         // truncate the GPS coordinates if the configuration says so (default disabled)
-        if (config_coord_truncation)
+        if (theConfig.coord_truncation)
           truncate_JP(ptr->lat, ptr->lon);
   
         // generate timestamp. only update the start time if 
@@ -359,7 +358,7 @@ void loop()
         if (rtc_acq == 0)
         {
           sd_log_last_write = 0;   // because we don't write to SD before GPS lock
-          if (serial_output_enable)
+          if (theConfig.serial_output)
             Serial.print("No GPS: ");
         }
         else
@@ -380,7 +379,7 @@ void loop()
 #endif
 
         // output through Serial too
-        if (serial_output_enable)
+        if (theConfig.serial_output)
           Serial.println(line);
 
         // Now take care of the Status message
@@ -402,7 +401,7 @@ void loop()
   #endif
       
         // show in Serial stream
-        if (serial_output_enable)
+        if (theConfig.serial_output)
           Serial.println(line);
 
       } /* gps_available */
@@ -481,7 +480,7 @@ byte bg_status_str_gen(char *buf)
   delay(100);
 
   // sense high voltage if configured so
-  if (config_hv_sense)
+  if (theConfig.hv_sense)
     hv = bgs_read_hv();        // V
 
   // sense battery voltage
@@ -499,7 +498,7 @@ byte bg_status_str_gen(char *buf)
 
   // create string
   memset(buf, 0, LINE_SZ);
-  if (config_hv_sense)
+  if (theConfig.hv_sense)
   {
     sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
         hdr_status, \
@@ -711,13 +710,13 @@ void writeHeader2SD(char *filename)
 #endif
   sd_log_writeln(filename, tmp);
 
-  if (config_hv_sense)
+  if (theConfig.hv_sense)
     strcpy_P(tmp, PSTR("# HV sense enabled,yes"));
   else
     strcpy_P(tmp, PSTR("# HV sense enabled,no"));
   sd_log_writeln(filename, tmp);
 
-  if (config_coord_truncation)
+  if (theConfig.coord_truncation)
   {
     strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
     sd_log_writeln(filename, tmp);
@@ -842,7 +841,7 @@ void diagnostics()
   Serial.println(tmp);
 
   // HV sensing
-  if (config_hv_sense)
+  if (theConfig.hv_sense)
   {
     strcpy_P(tmp, PSTR("HV sense enabled,yes"));
     Serial.println(tmp);
@@ -883,7 +882,7 @@ void diagnostics()
   Serial.println(tmp);
 #endif
 
-  if (config_coord_truncation)
+  if (theConfig.coord_truncation)
   {
     strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
     Serial.println(tmp);

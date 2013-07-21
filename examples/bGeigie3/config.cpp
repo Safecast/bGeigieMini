@@ -20,20 +20,51 @@ typedef struct
 
 /* our configuration global variable */
 config_t theConfig;
+int config_file_exists  = 0;
+int config_file_rewrite = 0;
+
+/* config key values */
+char PROGMEM ID_K[] = "ID";
+char PROGMEM SO_K[] = "SerialOutput";
+char PROGMEM CT_K[] = "CoordTrunc";
+char PROGMEM HV_K[] = "HVSense";
+char PROGMEM SD_K[] = "SDRW";
 
 /* this flag decides is the config file needs to be rewritten from flash */
-config_rewrite_flag = 0;
 
 /* initialize the configuration in setup */
 void config_init()
 {
+  int rewrite_eeprom_flag = 0;
+
+  /* we rely on SD card being opened by the SD logger */
+  /* otherwise, we'd need to call SD.begin(pin) */
+
+  // First, pull whatever configuration is in the EEPROM
+  pullFromEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+
+  // now try pulling from the file, if it exists
+  file_exists = SD.exists(CONFIG_FILE_NAME);
+  if (file_exists)
+  {
+    // we pull from the file and rewrite EEPROM if necessary
+    if (pullFromFile())
+      pushToEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+  }
+
+  // write the file if necessary
+  if (config_file_rewrite || !file_exists)
+    pushToFile();
 }
 
+/* This updates EEPROM and config file with configuration in memory */
 void config_update()
 {
-
+  pushToEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+  pushToFile();
 }
 
+/* read configuration from SD card */
 int pullFromFile()
 {
   File file;
@@ -43,12 +74,6 @@ int pullFromFile()
   int ksz, vsz;
   int r;
   int rewrite_eeprom_flag = 0;
-
-  // First, pull whatever configuration is in the EEPROM
-  pullFromEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
-
-  /* we rely on SD card being opened by the SD logger */
-  /* otherwise, we'd need to call SD.begin(pin) */
 
   /* open file */
   file = SD.open(CONFIG_FILE_NAME, FILE_READ);
@@ -73,14 +98,14 @@ int pullFromFile()
         continue;
 
       // check against possible options
-      if (strncmp_P(PSTR("ID"), key, 2) == 0)
+      if (strncmp_P(ID_K, key, 2) == 0)
       {
         if (DEV_ID_VALID(v))
           theConfig.id = v;
         else
           theConfig.id = DEV_ID_INVALID;
       }
-      else if (strncmp_P(PSTR("SerialOutput"), key, 12) == 0)
+      else if (strncmp_P(SO_K, key, 12) == 0)
       {
         if (IS_BOOLEAN(v) && theConfig.serial_output != v)
         {
@@ -90,7 +115,7 @@ int pullFromFile()
         else if (!IS_BOOLEAN(theConfig.serial_output))
           theConfig.serial_output = 0;  // default
       }
-      else if (strncmp_P(PSTR("CoordTrunc"), key, 10) == 0)
+      else if (strncmp_P(CO_K, key, 10) == 0)
       {
         if (IS_BOOLEAN(v) && theConfig.coord_truncation != v)
         {
@@ -100,7 +125,7 @@ int pullFromFile()
         else if (!IS_BOOLEAN(theConfig.coord_truncation))
           theConfig.coord_truncation = 0;  // default
       }
-      else if (strncmp_P(PSTR("SDRW"), key, 4) == 0)
+      else if (strncmp_P(SD_K, key, 4) == 0)
       {
         if (IS_BOOLEAN(v) && theConfig.sd_rw != v)
         {
@@ -110,7 +135,7 @@ int pullFromFile()
         else if (!IS_BOOLEAN(theConfig.sd_rw))
           theConfig.sd_rw = 0;  // default
       }
-      else if (strncmp_P(PSTR("HVSense"), key, 7) == 0)
+      else if (strncmp_P(HV_K, key, 7) == 0)
       {
         if (IS_BOOLEAN(v) && theConfig.hv_sense != v)
         {
@@ -132,9 +157,78 @@ int pullFromFile()
     config_rewrite_flag = 1;
   }
 
-  // write to EEPROM if necessary
-  if (rewrite_eeprom_flag)
-    pushToEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+  return rewrite_eeprom_flag;
+}
+
+
+/* write the current configuration to a file */
+/* the existing file is deleted first */
+int pushToFile()
+{
+  File cfile;
+  char key[CONFIG_MAX_KEY_SZ];
+  char val[CONFIG_MAX_VAL_SZ];
+
+  // Remove the file if already there
+  SD.remove(CONFIG_FILE_NAME);
+
+  /* create new file */
+  cfile = SD.open(CONFIG_FILE_NAME, FILE_WRITE);
+  if (!cfile)
+    return 0;
+
+  /* write ID */
+  strcpy_P(key, ID_K);
+  sprintf(val, "%lx", (unsigned long)theConfig.id);
+  writeKeyVal(cfile, key, val);
+
+  /* write serial output option */
+  strcpy_P(key, SO_K);
+  sprintf(val, "%u", (unsigned int)theConfig.serial_output);
+  writeKeyVal(cfile, key, val);
+  
+  /* write coordinate truncation option */
+  strcpy_P(key, CT_K);
+  sprintf(val, "%u", (unsigned int)theConfig.coord_truncation);
+  writeKeyVal(cfile, key, val);
+
+  /* write HV sense option */
+  strcpy_P(key, HV_K);
+  sprintf(val, "%u", (unsigned int)theConfig.hv_sense);
+  writeKeyVal(cfile, key, val);
+
+  /* write SD-RW option */
+  strcpy_P(key, SD_K);
+  sprintf(val, "%u", (unsigned int)theConfig.sd_rw);
+  writeKeyVal(cfile, key, val);
+
+  /* close file */
+  cfile.close();
+}
+
+/* read device id from EEPROM */
+void pullFromEEPROM(int addr, uint8_t *ptr, size_t len)
+{
+  cli(); // disable all interrupts
+
+  for (int i=0 ; i < len ; i++)
+    EEPROM.read(i+addr, ptr[i]);
+
+  sei(); // re-enable all interrupts
+}
+
+/* write to EEPROM an unsigned integer */
+void pushToEEPROM(int addr, uint8_t *ptr, size_t len)
+{
+  cli(); // disable all interrupts
+
+  for (int i=0 ; i < len ; i++)
+    ptr[i] = (uint8_t)EEPROM.write(i+addr);
+
+  // set the end of string null
+  dev_id[BMRDD_ID_LEN] = NULL;
+
+  sei(); // re-enable all interrupts
 }
 
 /* this reads at most max_len char from the next line in the file */
@@ -166,32 +260,11 @@ int readNextLine(File *file, char *buf, int max_len)
   return i;
 }
 
-void PushToFile()
+/* write a key/val pair to a file */
+int writeKeyVal(File *file, char *key, char *val)
 {
-
-}
-
-/* read device id from EEPROM */
-void pullFromEEPROM(int addr, uint8_t *ptr, size_t len)
-{
-  cli(); // disable all interrupts
-
-  for (int i=0 ; i < len ; i++)
-    EEPROM.read(i+addr, ptr[i]);
-
-  sei(); // re-enable all interrupts
-}
-
-/* write to EEPROM an unsigned integer */
-void pushToEEPROM(int addr, uint8_t *ptr, size_t len)
-{
-  cli(); // disable all interrupts
-
-  for (int i=0 ; i < len ; i++)
-    ptr[i] = (uint8_t)EEPROM.write(i+addr);
-
-  // set the end of string null
-  dev_id[BMRDD_ID_LEN] = NULL;
-
-  sei(); // re-enable all interrupts
+  file.write(key);
+  file.write(':');
+  file.write(val);
+  file.write('\n');
 }
