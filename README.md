@@ -162,13 +162,14 @@ The checksum is then always encoded as a string of two ASCII characters giving t
 6. Open the Serial terminal by pressing button (or `Tools -> Serial Monitor`), you should see something like
 
         *** Welcome to bGeigie ***
-        Version-3.0.1
+        Version-3.2.2
         GPS start time,590ms
         --- Diagnostic START ---
-        Version,3.0.1
-        Device ID,300
+        Version,3.2.2
+        Device ID,301
+        Radio enabled,yes
         Radio initialized,yes
-        Radio address,3300
+        Radio address,3301
         Radio channel,20
         GPS type MTK,yes
         GPS system startup,yes
@@ -176,11 +177,16 @@ The checksum is then always encoded as a string of two ASCII characters giving t
         SD initialized,yes
         SD open file,yes
         SD read write,yes
+        SD reader enabled,yes
         SD reader initialized,yes
-        Temperature,24C
-        Humidity,49%
-        Battery voltage,3827mV
-        System free RAM,13507B
+        Temperature,30C
+        Humidity,45%
+        Battery voltage,4198mV
+        HV sense enabled,no
+        System free RAM,13639B
+        Power management enabled,yes
+        Command line interface enabled,yes
+        Coordinate truncation enabled,no
         --- Diagnostic END ---
         Starting now!
         bGeigie sleeps... good night.
