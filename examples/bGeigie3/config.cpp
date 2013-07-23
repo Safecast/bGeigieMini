@@ -1,25 +1,10 @@
 
+#include <EEPROM.h>
+
 #include "config.h"
 
-#include <stdlib.h>
-
-/* A structure containing the configuration */
-typedef struct
-{
-  /* device id : default is 0xFFFFFFFF i.e. id not defined */
-  uint32_t id = -1;
-  /* Serial output enabled (1) / disabled (0) */
-  uint8_t serial_output = 0;
-  /* JP coordinate truncation Enable (1) / Disable (0) */
-  uint8_t coord_truncation = 0;
-  /* HV board sensing */
-  uint8_t hv_sense = 0;
-  /* SD reader is read/write Enable (1) / Disable (0) */
-  uint8_t sd_rw = 0;
-} config_t;
-
 /* our configuration global variable */
-config_t theConfig;
+config_t theConfig = {0xFFFFFFFF, 1, 0, 0, 0};
 int config_file_exists  = 0;
 int config_file_rewrite = 0;
 
@@ -35,45 +20,114 @@ char PROGMEM SD_K[] = "SDRW";
 /* initialize the configuration in setup */
 void config_init()
 {
+  config_t fromFile;
+
+  int config_file_exists = 0;
   int rewrite_eeprom_flag = 0;
 
   /* we rely on SD card being opened by the SD logger */
   /* otherwise, we'd need to call SD.begin(pin) */
 
   // First, pull whatever configuration is in the EEPROM
-  pullFromEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+  configFromEEPROM(&theConfig);
 
-  // now try pulling from the file, if it exists
-  file_exists = SD.exists(CONFIG_FILE_NAME);
-  if (file_exists)
+  // set default values if magic is not right
+  if (theConfig.magic != CONFIG_MAGIC)
   {
-    // we pull from the file and rewrite EEPROM if necessary
-    if (pullFromFile())
-      pushToEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
+    cfgSetInvalid(&theConfig); // first set all to invalid
+    rewrite_eeprom_flag = 1;
   }
 
+  // now try pulling from the file, if it exists
+  config_file_exists = SD.exists(CONFIG_FILE_NAME);
+  if (config_file_exists)
+  {
+    /* read configuration file */
+    configFromFile(&fromFile);
+
+    /* compare all values from EEPROM and file, if value in file is valid, replace in EEPROM */
+    if (fromFile.id != theConfig.id && fromFile.id != CONFIG_ID_INVALID)
+    {
+      theConfig.id = fromFile.id;
+      rewrite_eeprom_flag;
+    }
+    if (fromFile.serial_output != theConfig.serial_output && IS_BOOLEAN(fromFile.serial_output))
+    {
+      theConfig.serial_output = fromFile.serial_output;
+      rewrite_eeprom_flag;
+    }
+    if (fromFile.coord_truncation != theConfig.coord_truncation && IS_BOOLEAN(fromFile.coord_truncation))
+    {
+      theConfig.coord_truncation = fromFile.coord_truncation;
+      rewrite_eeprom_flag;
+    }
+    if (fromFile.hv_sense != theConfig.hv_sense && fromFile.hv_sense != CONFIG_ID_INVALID)
+    {
+      theConfig.hv_sense = fromFile.hv_sense;
+      rewrite_eeprom_flag;
+    }
+    if (fromFile.sd_rw != theConfig.sd_rw && fromFile.sd_rw != CONFIG_ID_INVALID)
+    {
+      theConfig.sd_rw = fromFile.sd_rw;
+      rewrite_eeprom_flag;
+    }
+  }
+
+  /* check all the values in EEPROM and set to default if necessary */
+  cfgSetDefault(&theConfig);
+
+  // write to EEPROM if necessary
+  if (rewrite_eeprom_flag)
+    configToEEPROM();
+
   // write the file if necessary
-  if (config_file_rewrite || !file_exists)
-    pushToFile();
+  if (!config_file_exists)
+    configToFile();
 }
 
-/* This updates EEPROM and config file with configuration in memory */
-void config_update()
+/* set default values if invalid */
+void cfgSetDefault(config_t *cfg)
 {
-  pushToEEPROM(CONFIG_EEPROM_ADDR, &theConfig, sizeof(config_t));
-  pushToFile();
+  /* there is no a priori info on id value */
+  /* for all other values, we can only check if boolean or not */
+  if (!IS_BOOLEAN(cfg->serial_output))
+    cfg->serial_output    = CONFIG_SO_DEFAULT;
+  if (!IS_BOOLEAN(cfg->serial_output))
+    cfg->coord_truncation = CONFIG_CT_DEFAULT;
+  if (!IS_BOOLEAN(cfg->serial_output))
+    cfg->hv_sense         = CONFIG_HV_DEFAULT;
+  if (!IS_BOOLEAN(cfg->serial_output))
+    cfg->sd_rw            = CONFIG_SD_DEFAULT;
+}
+
+/* initialize structure to all invalid */
+void cfgSetInvalid(config_t *cfg)
+{
+  cfg->magic            = CONFIG_MAGIC;
+  cfg->id               = CONFIG_ID_INVALID;
+  cfg->serial_output    = CONFIG_SO_INVALID;
+  cfg->coord_truncation = CONFIG_CT_INVALID;
+  cfg->hv_sense         = CONFIG_HV_INVALID;
+  cfg->sd_rw            = CONFIG_SD_INVALID;
+}
+
+/* copy src into dst */
+void cfgcpy(config_t *dst, config_t *src)
+{
+  memcpy((void *)dst, (void *)src, sizeof(config_t));
 }
 
 /* read configuration from SD card */
-int pullFromFile()
+int configFromFile(config_t *cfg)
 {
   File file;
   char fline[CONFIG_MAX_KEY_SZ+CONFIG_MAX_VAL_SZ+1];
-  int nc = CONFIG_MAX_KEY_SZ + CONFIG_MAX_VAL_SZ;
   char *key, *val;
-  int ksz, vsz;
-  int r;
   int rewrite_eeprom_flag = 0;
+  int n_param_found = 0;
+
+  /* initialize the config var to all invalid */
+  cfgSetInvalid(cfg);
 
   /* open file */
   file = SD.open(CONFIG_FILE_NAME, FILE_READ);
@@ -83,87 +137,54 @@ int pullFromFile()
   {
 
     /* read the first line */
-    while ((r = readNextLine(file, fline, nc)) != -1)
+    while ((readNextLine(&file, fline, CONFIG_MAX_KEY_SZ+CONFIG_MAX_VAL_SZ+2)) != -1)
     {
       // split in key/val using specified delimiter
-      key = fline;
+      key = val = fline;
       key = strsep(&val, CONFIG_KEYVAL_SEP);
 
       /* parse value */
-      char **endptr;
-      uint32_t v = (uint32_t)strtoul(val, endptr, 16);
+      char *endptr;
+      uint32_t v = (uint32_t)strtoul(val, &endptr, 16);
 
       /* if parse is not successful, skip line */
-      if (!(*val != NULL && **endptr == NULL))
+      if (*endptr != '\0')
         continue;
 
       // check against possible options
-      if (strncmp_P(ID_K, key, 2) == 0)
-      {
-        if (DEV_ID_VALID(v))
-          theConfig.id = v;
-        else
-          theConfig.id = DEV_ID_INVALID;
-      }
-      else if (strncmp_P(SO_K, key, 12) == 0)
-      {
-        if (IS_BOOLEAN(v) && theConfig.serial_output != v)
-        {
-          theConfig.serial_output = v;
-          rewrite_eeprom_flag = 1;
-        }
-        else if (!IS_BOOLEAN(theConfig.serial_output))
-          theConfig.serial_output = 0;  // default
-      }
-      else if (strncmp_P(CO_K, key, 10) == 0)
-      {
-        if (IS_BOOLEAN(v) && theConfig.coord_truncation != v)
-        {
-          theConfig.coord_truncation = v;
-          rewrite_eeprom_flag = 1;
-        }
-        else if (!IS_BOOLEAN(theConfig.coord_truncation))
-          theConfig.coord_truncation = 0;  // default
-      }
-      else if (strncmp_P(SD_K, key, 4) == 0)
-      {
-        if (IS_BOOLEAN(v) && theConfig.sd_rw != v)
-        {
-          theConfig.sd_rw = v;
-          rewrite_eeprom_flag = 1;
-        }
-        else if (!IS_BOOLEAN(theConfig.sd_rw))
-          theConfig.sd_rw = 0;  // default
-      }
-      else if (strncmp_P(HV_K, key, 7) == 0)
-      {
-        if (IS_BOOLEAN(v) && theConfig.hv_sense != v)
-        {
-          theConfig.hv_sense = v;
-          rewrite_eeprom_flag = 1;
-        }
-        else if (!IS_BOOLEAN(theConfig.hv_sense))
-          theConfig.hv_sense = 0;  // default
-      }
+      if (strcmp_P(key, ID_K) == 0)
+        cfg->id = (uint16_t)v;
+
+      else if (strcmp_P(key, SO_K) == 0)
+        cfg->serial_output = (uint8_t)v;
+
+      else if (strcmp_P(key, CT_K) == 0)
+        cfg->coord_truncation = (uint8_t)v;
+
+      else if (strcmp_P(key, HV_K) == 0)
+        cfg->hv_sense = (uint8_t)v;
+
+      else if (strcmp_P(key, SD_K) == 0)
+        cfg->sd_rw = (uint8_t)v;
+
       else
-      {
         continue;
-      }
+
+      // increase number of parameters found
+      n_param_found++;
     }
   }
-  else
-  {
-    // if the file was not found, mark to be rewritten
-    config_rewrite_flag = 1;
-  }
 
-  return rewrite_eeprom_flag;
+  // close the file
+  file.close();
+
+  return n_param_found;
 }
 
 
 /* write the current configuration to a file */
 /* the existing file is deleted first */
-int pushToFile()
+int configToFile()
 {
   File cfile;
   char key[CONFIG_MAX_KEY_SZ];
@@ -180,53 +201,62 @@ int pushToFile()
   /* write ID */
   strcpy_P(key, ID_K);
   sprintf(val, "%lx", (unsigned long)theConfig.id);
-  writeKeyVal(cfile, key, val);
+  writeKeyVal(&cfile, key, val);
 
   /* write serial output option */
   strcpy_P(key, SO_K);
   sprintf(val, "%u", (unsigned int)theConfig.serial_output);
-  writeKeyVal(cfile, key, val);
+  writeKeyVal(&cfile, key, val);
   
   /* write coordinate truncation option */
   strcpy_P(key, CT_K);
   sprintf(val, "%u", (unsigned int)theConfig.coord_truncation);
-  writeKeyVal(cfile, key, val);
+  writeKeyVal(&cfile, key, val);
 
   /* write HV sense option */
   strcpy_P(key, HV_K);
   sprintf(val, "%u", (unsigned int)theConfig.hv_sense);
-  writeKeyVal(cfile, key, val);
+  writeKeyVal(&cfile, key, val);
 
   /* write SD-RW option */
   strcpy_P(key, SD_K);
   sprintf(val, "%u", (unsigned int)theConfig.sd_rw);
-  writeKeyVal(cfile, key, val);
+  writeKeyVal(&cfile, key, val);
 
   /* close file */
   cfile.close();
 }
 
-/* read device id from EEPROM */
-void pullFromEEPROM(int addr, uint8_t *ptr, size_t len)
+/* read config from EEPROM into cfg variable */
+void configFromEEPROM(config_t *cfg)
+{
+  readEEPROM(CONFIG_EEPROM_ADDR, (uint8_t *)cfg, sizeof(config_t));
+}
+
+/* write theConfig to EEPROM */
+void configToEEPROM()
+{
+  writeEEPROM(CONFIG_EEPROM_ADDR, (uint8_t *)&theConfig, sizeof(config_t));
+}
+
+/* read a number of byte from EEPROM */
+void readEEPROM(int addr, uint8_t *ptr, size_t len)
 {
   cli(); // disable all interrupts
 
   for (int i=0 ; i < len ; i++)
-    EEPROM.read(i+addr, ptr[i]);
+    ptr[i] = (uint8_t)EEPROM.read(i+addr);
 
   sei(); // re-enable all interrupts
 }
 
-/* write to EEPROM an unsigned integer */
-void pushToEEPROM(int addr, uint8_t *ptr, size_t len)
+/* write to EEPROM a number of bytes */
+void writeEEPROM(int addr, uint8_t *ptr, size_t len)
 {
   cli(); // disable all interrupts
 
   for (int i=0 ; i < len ; i++)
-    ptr[i] = (uint8_t)EEPROM.write(i+addr);
-
-  // set the end of string null
-  dev_id[BMRDD_ID_LEN] = NULL;
+    EEPROM.write(i+addr, ptr[i]);
 
   sei(); // re-enable all interrupts
 }
@@ -263,8 +293,9 @@ int readNextLine(File *file, char *buf, int max_len)
 /* write a key/val pair to a file */
 int writeKeyVal(File *file, char *key, char *val)
 {
-  file.write(key);
-  file.write(':');
-  file.write(val);
-  file.write('\n');
+  file->write(key);
+  file->write(CONFIG_KEYVAL_SEP);
+  file->write(val);
+  file->write('\n');
 }
+

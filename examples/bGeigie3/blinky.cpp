@@ -1,6 +1,3 @@
-#ifndef __BLINKY_H__
-#define __BLINKY_H__
-
 #include "blinky.h"
 
 /* global variables definition */
@@ -77,4 +74,3 @@ void blinky(byte mode)
 
 }
 
-#endif /* __BLINKY_H__ */

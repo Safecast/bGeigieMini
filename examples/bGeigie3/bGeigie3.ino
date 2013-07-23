@@ -336,7 +336,7 @@ void loop()
 
           // create the rest of the file name
           strcat(filename, "/");
-          strncat(filename, dev_id, 3);
+          sprintf(filename + strlen(filename), "%x", theConfig.id & 0xFFF); // limit to 3 last digit
           strcat(filename, "-");
           strncat(filename, gps_getData()->datetime.month, 2);
           strncat(filename, gps_getData()->datetime.day, 2);
@@ -348,7 +348,10 @@ void loop()
         
         // truncate the GPS coordinates if the configuration says so (default disabled)
         if (theConfig.coord_truncation)
+        {
+          gps_t *ptr = gps_getData();
           truncate_JP(ptr->lat, ptr->lon);
+        }
   
         // generate timestamp. only update the start time if 
         // we printed the timestamp. otherwise, the GPS is still 
@@ -434,9 +437,9 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   gps_t *ptr = gps_getData();
 
   memset(buf, 0, LINE_SZ);
-  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
+  sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
               hdr, \
-              dev_id, \
+              (unsigned long)theConfig.id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
               ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
               cpm, \
@@ -500,9 +503,9 @@ byte bg_status_str_gen(char *buf)
   memset(buf, 0, LINE_SZ);
   if (theConfig.hv_sense)
   {
-    sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
         hdr_status, \
-        dev_id, \
+        (unsigned long)theConfig.id, \
         ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
         ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
         ptr->lat, ptr->lat_hem, \
@@ -516,9 +519,9 @@ byte bg_status_str_gen(char *buf)
   }
   else
   {
-    sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
         hdr_status, \
-        dev_id, \
+        (unsigned long)theConfig.id, \
         ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
         ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
         ptr->lat, ptr->lat_hem, \
@@ -555,28 +558,6 @@ unsigned long cpm_gen()
      c_p_m += shift_reg[i];
    
    return c_p_m;
-}
-
-
-/* Set the address for the radio based on device ID */
-unsigned int getRadioAddr()
-{
-  // prefix with two so that it never collides with broadcast address
-  unsigned int a = RX_ADDR_BASE;
-
-  // first digit
-  if (dev_id[0] != 'X')
-    a += (unsigned int)(dev_id[0]-'0') * 0x100;
-
-  // second digit
-  if (dev_id[1] != 'X')
-    a += (unsigned int)(dev_id[1]-'0') * 0x10;
-
-  // third digit
-  if (dev_id[2] != 'X')
-    a += (unsigned int)(dev_id[2]-'0') * 0x1;
-
-  return a;
 }
 
 
@@ -748,7 +729,7 @@ void diagnostics()
   // Device ID
   strcpy_P(tmp, PSTR("Device ID,"));
   Serial.print(tmp);
-  Serial.println(dev_id);
+  Serial.println(theConfig.id, HEX);
 
 #if RADIO_ENABLE
   // basic radio operations
