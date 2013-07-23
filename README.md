@@ -227,11 +227,11 @@ following usage.
       config copy [eeprom/file]      Copy configuration from EEPROM or SD card to memory.
       config help                    Show this help.
 
-## Prepare the SD card to be used with Mac OS X
+### Prepare the SD card to be used with Mac OS X
 
 Mac OS X creates a number of hidden files for indexing and other esoteric stuff. When the SD card
 is in read/write mode (SDRW=1), this can slow down communication quite a bit. To prevent indexing and
-trash, and logging, one can add a number of files at the root of the SD card ([source](http://hostilefork.com/2009/12/02/trashes-fseventsd-and-spotlight-v100/)
+trash, and logging, one can add a number of files at the root of the SD card ([source](http://hostilefork.com/2009/12/02/trashes-fseventsd-and-spotlight-v100/)).
 
     .metadata_never_index
     .Trashes
@@ -242,11 +242,11 @@ trash, and logging, one can add a number of files at the root of the SD card ([s
 
 The sketches given in examples are the actual firmware of the different Safecast bGeigie devices:
 
+* bGeigie3
 * bGeigieMini
 * bGeigieClassic
 * bGeigieNinja
 * bGeigieConfigBurner
-* SlidingWindowCounter
 
 ## License
 
