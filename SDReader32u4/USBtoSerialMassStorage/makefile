@@ -18,10 +18,12 @@ OPTIMIZATION = s
 TARGET       = USBtoSerialMassStorage
 SRC          = $(TARGET).c Descriptors.c Lib/SDCardManager.c Lib/SCSI.c Lib/Timer.c Lib/sd_raw.c $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS) $(LUFA_SRC_SERIAL)
 LUFA_PATH    = ../LUFA_120730/LUFA
-CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/
+CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/ -Wall
 LD_FLAGS     =
 
 AVRDUDE_PROGRAMMER = usbtiny
+AVRDUDE_PORT       = usb
+AVRDUDE_FLAGS      = -B1
 
 # Default target
 all:

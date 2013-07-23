@@ -45,6 +45,6 @@
 
 	#define TOTAL_LUNS                1
 
-	#define DISK_READ_ONLY            true
+	#define DISK_READ_ONLY            false
 
 #endif

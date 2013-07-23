@@ -187,6 +187,57 @@ The checksum is then always encoded as a string of two ASCII characters giving t
 
     Congratulations, we're half-way there.
 
+## Device configuration
+
+It is possible to configure the device by placing a file called `BGCONFIG.TXT` at the root of the SD card.
+Its content is something like this.
+
+    ID:301
+    SerialOutput:1
+    CoordTrunc:0
+    HVSense:0
+    SDRW:0
+
+If such a file is present on the SD card, the device will change its
+configuration according to it.  It will then save the new configuration in
+EEPROM. If the file should disappear or be corrupted, it is recreated from
+EEPROM.
+
+* *ID*: The serial number of the device. A maximum 4-digits hex number. For the bGeigie-NX, the convention is to use a 3-digits hex number starting with `3`.
+* *SerialOutput*: [0/1] This enables display of log lines through the serial connection.
+* *CoordTrunc*: [0/1] When set to one, this enables the truncation of GPS coordinates to a 100x100m grid.
+* *HVSense*: [0/1] When set to one, the high-voltage sensing is activated. This is useful for HV boards that have a sensing output.
+* *SDRW*: [0/1] When set to one, the SD card is writable through the USB reader. Otherwise it is read-only.
+
+It possible to modify these options by changing the file, or by connecting
+through the serial port and use the `config` command.  This command has
+following usage.
+
+    Usage: config <cmd> [args]
+    List of commands:
+      config show                    Show current configuration.
+      config show [eeprom/file]      Show eeprom/file configuration.
+      config ID [id]                 Set device serial number. This is a 4-digit hex number
+      config SerialOutput [on/off]   Toggle serial output on or off.
+      config CoordTrunc [on/off]     Enable or disable coordinate truncation to 100x100m grid.
+      config HVSense [on/off]        Enable or disable high-voltage output sensing.
+      config SDRW [on/off]           Enable or disable write permission to SD card through reader.
+      config save                    Writes configuration to EEPROM and SD card.
+      config save [eeprom/file]      Writes configuration to EEPROM or SD card.
+      config copy [eeprom/file]      Copy configuration from EEPROM or SD card to memory.
+      config help                    Show this help.
+
+## Prepare the SD card to be used with Mac OS X
+
+Mac OS X creates a number of hidden files for indexing and other esoteric stuff. When the SD card
+is in read/write mode (SDRW=1), this can slow down communication quite a bit. To prevent indexing and
+trash, and logging, one can add a number of files at the root of the SD card ([source](http://hostilefork.com/2009/12/02/trashes-fseventsd-and-spotlight-v100/)
+
+    .metadata_never_index
+    .Trashes
+    .fseventsd/no_log
+
+
 ## Example Sketches
 
 The sketches given in examples are the actual firmware of the different Safecast bGeigie devices:

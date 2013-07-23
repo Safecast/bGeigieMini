@@ -35,8 +35,8 @@
 #include <avr/power.h>
 #include <avr/wdt.h>
 
-#include <bg_pwr.h>
-
+#include "config.h"
+#include "bg_pwr.h"
 #include "sd_reader_int.h"
 #include "sd_logger.h"
 
@@ -64,6 +64,9 @@ unsigned long last_interrupt;
 /* Custom commands to turn on and off SD card reader */
 #define CMD_SD_ON 0x3c
 #define CMD_SD_OFF 0x3d
+
+/* Custom command to transmit if card is writable */
+#define CMD_IS_RW 0x38
 
 /* Custom command to request CID and CSD */
 #define CMD_REQ_INFO 0x3e
@@ -246,7 +249,6 @@ void sd_reader_process_interrupt()
 
   uint8_t cmd = 0;
   uint32_t arg = 0;
-  uint8_t ret = 0;
 
   bg_led_on();
 
@@ -341,6 +343,16 @@ void sd_reader_process_interrupt()
       case 0x40 | CMD_REQ_INFO:
         //Serial.println("SD info req cmd.");
         sd_reader_get_info();
+        break;
+
+      case 0x40 | CMD_IS_RW:
+        //Serial.println("Card write status req cmd.");
+        select_32u4();
+        if (theConfig.sd_rw == 1)
+          spi_tx_byte(R1_SUCCESS);
+        else
+          spi_tx_byte(R1_FAILURE);
+        unselect_32u4();
         break;
 
       default:

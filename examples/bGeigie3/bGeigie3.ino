@@ -48,13 +48,13 @@
 #include <HardwareCounter.h>
 #include <sd_logger.h>
 #include <bg_sensors.h>
-#include <bg_pwr.h>
-#include <sd_reader_int.h>
 
 // bGeigie specific headers
 #include "config.h"
 #include "commands.h"
 #include "blinky.h"
+#include "bg_pwr.h"
+#include "sd_reader_int.h"
 
 // version header
 #include "version.h"
@@ -230,8 +230,6 @@ void setup()
 /* MAIN LOOP */
 void loop()
 {
-  char tmp[25];
-
   // we check the voltage of the battery and turn
   // the device off if it lower than the lowest
   // voltage acceptable by the power regulator (3.3V)
@@ -474,9 +472,8 @@ byte bg_status_str_gen(char *buf)
   byte len;
   byte chk;
 
-  int batt, hv;
+  int batt, hv=0;
   float t, h;
-  int tf, hf;
 
   // turn sensors on
   bg_sensors_on();
@@ -567,7 +564,6 @@ unsigned long cpm_gen()
 
 void power_up()
 {
-  char tmp[25];
 
 #if SD_READER_ENABLE
   if (!sd_reader_interrupted)
@@ -591,6 +587,18 @@ void power_up()
 
     // initialize sensors
     bg_sensors_on();
+
+    // re-init configuration after sleep
+    config_init();
+
+#if RADIO_ENABLE
+    // init chibi on channel normally 20
+    chibiSleepRadio(0);               // wake up the radio
+    uint16_t radio_addr = RX_ADDR_BASE + (uint16_t)theConfig.id;  // generate radio address based on device id
+    if (radio_addr != chibiGetShortAddr())
+      chibiSetShortAddr(radio_addr);    // set the address
+    chibiSleepRadio(1);               // sleep the radio
+#endif
 
     // initialize all global variables
     // set initial states of GPS, log file, Geiger counter, etc.

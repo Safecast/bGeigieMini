@@ -4,7 +4,7 @@
 #include "config.h"
 
 /* our configuration global variable */
-config_t theConfig = {0xFFFFFFFF, 1, 0, 0, 0};
+config_t theConfig = {CONFIG_ID_INVALID, 1, 0, 0, 0};
 int config_file_exists  = 0;
 int config_file_rewrite = 0;
 
@@ -14,6 +14,9 @@ char PROGMEM SO_K[] = "SerialOutput";
 char PROGMEM CT_K[] = "CoordTrunc";
 char PROGMEM HV_K[] = "HVSense";
 char PROGMEM SD_K[] = "SDRW";
+
+/* config filename */
+char config_filename[] = CONFIG_FILE_NAME;
 
 /* this flag decides is the config file needs to be rewritten from flash */
 
@@ -39,7 +42,7 @@ void config_init()
   }
 
   // now try pulling from the file, if it exists
-  config_file_exists = SD.exists(CONFIG_FILE_NAME);
+  config_file_exists = SD.exists(config_filename);
   if (config_file_exists)
   {
     /* read configuration file */
@@ -49,27 +52,27 @@ void config_init()
     if (fromFile.id != theConfig.id && fromFile.id != CONFIG_ID_INVALID)
     {
       theConfig.id = fromFile.id;
-      rewrite_eeprom_flag;
+      rewrite_eeprom_flag = 1;
     }
     if (fromFile.serial_output != theConfig.serial_output && IS_BOOLEAN(fromFile.serial_output))
     {
       theConfig.serial_output = fromFile.serial_output;
-      rewrite_eeprom_flag;
+      rewrite_eeprom_flag = 1;
     }
     if (fromFile.coord_truncation != theConfig.coord_truncation && IS_BOOLEAN(fromFile.coord_truncation))
     {
       theConfig.coord_truncation = fromFile.coord_truncation;
-      rewrite_eeprom_flag;
+      rewrite_eeprom_flag = 1;
     }
     if (fromFile.hv_sense != theConfig.hv_sense && fromFile.hv_sense != CONFIG_ID_INVALID)
     {
       theConfig.hv_sense = fromFile.hv_sense;
-      rewrite_eeprom_flag;
+      rewrite_eeprom_flag = 1;
     }
     if (fromFile.sd_rw != theConfig.sd_rw && fromFile.sd_rw != CONFIG_ID_INVALID)
     {
       theConfig.sd_rw = fromFile.sd_rw;
-      rewrite_eeprom_flag;
+      rewrite_eeprom_flag = 1;
     }
   }
 
@@ -123,14 +126,13 @@ int configFromFile(config_t *cfg)
   File file;
   char fline[CONFIG_MAX_KEY_SZ+CONFIG_MAX_VAL_SZ+1];
   char *key, *val;
-  int rewrite_eeprom_flag = 0;
   int n_param_found = 0;
 
   /* initialize the config var to all invalid */
   cfgSetInvalid(cfg);
 
   /* open file */
-  file = SD.open(CONFIG_FILE_NAME, FILE_READ);
+  file = SD.open(config_filename, FILE_READ);
 
   /* return 0 if file not found */
   if (file)
@@ -191,10 +193,10 @@ int configToFile()
   char val[CONFIG_MAX_VAL_SZ];
 
   // Remove the file if already there
-  SD.remove(CONFIG_FILE_NAME);
+  SD.remove(config_filename);
 
   /* create new file */
-  cfile = SD.open(CONFIG_FILE_NAME, FILE_WRITE);
+  cfile = SD.open(config_filename, FILE_WRITE);
   if (!cfile)
     return 0;
 
@@ -225,6 +227,9 @@ int configToFile()
 
   /* close file */
   cfile.close();
+
+  /* success */
+  return 1;
 }
 
 /* read config from EEPROM into cfg variable */
@@ -244,7 +249,7 @@ void readEEPROM(int addr, uint8_t *ptr, size_t len)
 {
   cli(); // disable all interrupts
 
-  for (int i=0 ; i < len ; i++)
+  for (unsigned int i=0 ; i < len ; i++)
     ptr[i] = (uint8_t)EEPROM.read(i+addr);
 
   sei(); // re-enable all interrupts
@@ -255,7 +260,7 @@ void writeEEPROM(int addr, uint8_t *ptr, size_t len)
 {
   cli(); // disable all interrupts
 
-  for (int i=0 ; i < len ; i++)
+  for (unsigned int i=0 ; i < len ; i++)
     EEPROM.write(i+addr, ptr[i]);
 
   sei(); // re-enable all interrupts
@@ -291,7 +296,7 @@ int readNextLine(File *file, char *buf, int max_len)
 }
 
 /* write a key/val pair to a file */
-int writeKeyVal(File *file, char *key, char *val)
+void writeKeyVal(File *file, char *key, char *val)
 {
   file->write(key);
   file->write(CONFIG_KEYVAL_SEP);

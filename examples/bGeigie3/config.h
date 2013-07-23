@@ -95,6 +95,6 @@ void writeEEPROM(int addr, uint8_t *ptr, size_t len);
 
 /* helper functions */
 int readNextLine(File *file, char *buf, int max_len);
-int writeKeyVal(File *file, char *key, char *val);
+void writeKeyVal(File *file, char *key, char *val);
 
 #endif /* __CONFIG_H__ */

@@ -34,7 +34,8 @@
 
 #include <Arduino.h>
 #include <avr/interrupt.h> 
-#include <bg3_pins.h>
+
+#include "bg3_pins.h"
 
 /* 
  * Special instructions to set SPI speed and other

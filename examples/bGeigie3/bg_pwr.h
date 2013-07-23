@@ -27,8 +27,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef __BGEIGIE_H__
-#define __BGEIGIE_H__
+#ifndef __BGPWR_H__
+#define __BGPWR_H__
 
 // Link to arduino library
 #if ARDUINO >= 100
@@ -55,8 +55,8 @@ void bg_pwr_init(int pin_switch, void (*on_wakeup)(), void (*on_sleep)());
 void bg_pwr_setup_switch_pin();
 
 // for button handling
-static int bg_pwr_button_pressed_flag = 0;
-static unsigned long bg_pwr_button_pressed_time = 0;
+extern int bg_pwr_button_pressed_flag;
+extern unsigned long bg_pwr_button_pressed_time;
 
 // routine to execute in the loop
 void bg_pwr_loop();
@@ -70,4 +70,4 @@ int bg_pwr_running();
 // sleep routing 
 void bg_pwr_down();
 
-#endif /* __BGEIGIE_H__ */
+#endif /* __BGPWR_H__ */

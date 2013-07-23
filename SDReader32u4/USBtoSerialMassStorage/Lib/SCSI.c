@@ -280,7 +280,8 @@ static bool SCSI_Command_ReadWrite_10(USB_ClassInfo_MS_Device_t* const MSInterfa
 	uint16_t TotalBlocks;
 
 	/* Check if the disk is write protected or not */
-	if ((IsDataRead == DATA_WRITE) && DISK_READ_ONLY)
+	//if ((IsDataRead == DATA_WRITE) && DISK_READ_ONLY)
+	if ((IsDataRead == DATA_WRITE) && global_disk_read_only)
 	{
 		/* Block address is invalid, update SENSE key and return command fail */
 		SCSI_SET_SENSE(SCSI_SENSE_KEY_DATA_PROTECT,
@@ -336,7 +337,8 @@ static bool SCSI_Command_ModeSense_6(USB_ClassInfo_MS_Device_t* const MSInterfac
 	/* Send an empty header response with the Write Protect flag status */
 	Endpoint_Write_8(0x00);
 	Endpoint_Write_8(0x00);
-	Endpoint_Write_8(DISK_READ_ONLY ? 0x80 : 0x00);
+	//Endpoint_Write_8(DISK_READ_ONLY ? 0x80 : 0x00);
+	Endpoint_Write_8(global_disk_read_only ? 0x80 : 0x00);
 	Endpoint_Write_8(0x00);
 	Endpoint_ClearIN();
 

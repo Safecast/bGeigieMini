@@ -13,6 +13,11 @@ char PROGMEM off_str[] = "off";
 char PROGMEM eeprom_str[] = "eeprom";
 char PROGMEM file_str[] = "file";
 
+/* command names */
+char help_str[] = "help";
+char config_str[] = "config";
+char diagnostics_str[] = "diagnostics";
+
 /* definitions */
 void cmdConfig(int arg_cnt, char **args);
 void cmdPrintHelp(int arg_cnt, char **args);
@@ -27,9 +32,9 @@ extern void diagnostics();
 
 void registerCommands()
 {
-  cmdAdd("help", cmdPrintHelp);
-  cmdAdd("config", cmdConfig);
-  cmdAdd("diagnostics", cmdDiagnostics);
+  cmdAdd(help_str, cmdPrintHelp);
+  cmdAdd(config_str, cmdConfig);
+  cmdAdd(diagnostics_str, cmdDiagnostics);
 }
 
 void cmdConfig(int arg_cnt, char **args)
@@ -160,8 +165,6 @@ void cmdConfig(int arg_cnt, char **args)
       theConfig.sd_rw = 0;
     else
       goto help;
-    strcpy_P(tmp, PSTR("Sorry, SD R/W command not implemented yet."));
-    Serial.println(tmp);
     return;
   }
 
