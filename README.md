@@ -209,11 +209,11 @@ configuration according to it.  It will then save the new configuration in
 EEPROM. If the file should disappear or be corrupted, it is recreated from
 EEPROM.
 
-* *ID*: The serial number of the device. A maximum 4-digits hex number. For the bGeigie-NX, the convention is to use a 3-digits hex number starting with `3`. An unconfigured device has address `0xFFFF`.
-* *SerialOutput*: [0/1] This enables display of log lines through the serial connection.
-* *CoordTrunc*: [0/1] When set to one, this enables the truncation of GPS coordinates to a 100x100m grid.
-* *HVSense*: [0/1] When set to one, the high-voltage sensing is activated. This is useful for HV boards that have a sensing output.
-* *SDRW*: [0/1] When set to one, the SD card is writable through the USB reader. Otherwise it is read-only.
+* __ID__ The serial number of the device. A maximum 4-digits hex number. For the bGeigie-NX, the convention is to use a 3-digits hex number starting with `3`. The id `0xFFFF` is reserved for unconfigured devices.
+* __SerialOutput__: [0/1] This enables display of log lines through the serial connection.
+* __CoordTrunc__: [0/1] When set to one, this enables the truncation of GPS coordinates to a 100x100m grid.
+* __HVSense__: [0/1] When set to one, the high-voltage sensing is activated. This is useful for HV boards that have a sensing output.
+* __SDRW__: [0/1] When set to one, the SD card is writable through the USB reader. Otherwise it is read-only.
 
 It possible to modify these options by changing the file, or by connecting
 through the serial port and use the `config` command.  This command has
