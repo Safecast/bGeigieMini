@@ -151,9 +151,9 @@ This assumes you already have homebrew installed.
   ![ISP setting](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/isp_setting.jpg)
 3. Pull low (off) the small switch on the right of the black dual switch.
   ![Switch Setting 32u4](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_32u4.jpg)
-4. In a terminal, go to `SDReader32u4/MassStorage`.
+4. In a terminal, go to `SDReader32u4/USBtoSerialMassStorage`.
 
-        cd <arduino_libraries_path>/SDReader32u4/MassStorage
+        cd <arduino_libraries_path>/SDReader32u4/USBtoSerialMassStorage
 
 5. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
 
