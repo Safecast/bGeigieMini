@@ -34,7 +34,8 @@
 #include <avr/sleep.h>
 #include <avr/power.h>
 #include <avr/interrupt.h>
-#include <sd_reader_int.h>
+
+#include "sd_reader_int.h"
 
 // main state variable
 int bg_pwr_state = BG_STATE_PWR_DOWN;
@@ -45,8 +46,10 @@ int bg_pwr_exec_sleep_routine_flag = 0;
 
 // power switch pin
 static int bg_pwr_switch_pin;
-// interrupt number
-static int bg_pwr_interrupt;
+
+// for button handling
+int bg_pwr_button_pressed_flag = 0;
+unsigned long bg_pwr_button_pressed_time = 0;
 
 unsigned long ellapsed_millis(unsigned long start);
 

@@ -127,6 +127,7 @@ typedef uint8_t (*sd_raw_read_interval_handler_t)(USB_ClassInfo_MS_Device_t* con
 typedef uintptr_t (*sd_raw_write_interval_handler_t)(USB_ClassInfo_MS_Device_t* const MSInterfaceInfo, uint8_t* buffer, offset_t offset, void* p);
 
 uint8_t sd_raw_init(void);
+uint8_t sd_raw_is_readonly(void);
 uint8_t sd_raw_available(void);
 uint8_t sd_raw_locked(void);
 

@@ -1,4 +1,3 @@
-
 #include "blinky.h"
 
 /* global variables definition */
@@ -72,10 +71,6 @@ void blinky(byte mode)
     TCCR2B |= (1 << CS21) | (1 << CS20);  // 125ms blink period (clk/32)
   else
     bg_led_off();
-  /*
-  else if (blink_mode == BLINK_BATTERY_LOW)
-    TCCR2B |= (1 << CS22) | (1 << CS20);  // 500ms blink period (clk/128)
-    */
 
 }
 

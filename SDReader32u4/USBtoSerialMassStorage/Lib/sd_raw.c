@@ -102,6 +102,9 @@
 /* CMD59: arg0[31:1]: stuff bits, arg0[0:0]: crc option, response R1 */
 #define CMD_CRC_ON_OFF 0x3b
 
+/* Custom command to enquire if SD card is writable */
+#define CMD_IS_RW 0x38
+
 /* Custom commands to turn on and off SD card reader */
 #define CMD_SD_ON 0x3c
 #define CMD_SD_OFF 0x3d
@@ -200,9 +203,8 @@ uint8_t sd_raw_init()
   /* test SPI IRQ based communication */
   b = sd_raw_send_command(CMD_SD_ON, 0x12345678);
 
-  if (b == 0xff)
+  if (b == R1_FAILURE)
   {
-    //printf(" failed.\r\n");
     return 0;
   }
 
@@ -231,6 +233,25 @@ uint8_t sd_raw_init()
 
 /**
  * \ingroup sd_raw
+ * Verify if Card is writable or not
+ *
+ * \returns 0 for not writable, 1 for writable.
+ */
+uint8_t sd_raw_is_readonly(void)
+{
+  uint8_t b;
+
+  /* ask if card is writable */
+  b = sd_raw_send_command(CMD_IS_RW, 0x0);
+
+  if (b == R1_SUCCESS)
+    return false;
+  else
+    return true;
+}
+
+/**
+ * \ingroup sd_raw
  * Initialize the SPI port as slave
  *
  * \return nothing
@@ -238,6 +259,7 @@ uint8_t sd_raw_init()
 void sd_raw_spi_init(void)
 {
   uint8_t b;
+
   // SS input
   configure_pin_ss();
   // SCK input

@@ -45,10 +45,15 @@ static struct sd_raw_info disk_info;
 static uint32_t CachedTotalBlocks = 0;
 static uint8_t Buffer[16];
 
+uint8_t global_disk_read_only = 0;
+
 void SDCardManager_Init(void)
 {
+  // start reader
 	while(!sd_raw_init());
-		//printf_P(PSTR("MMC/SD initialization failed\r\n"));
+
+  // check if media writable
+  global_disk_read_only = sd_raw_is_readonly();
 }
 
 uint32_t SDCardManager_GetNbBlocks(void)

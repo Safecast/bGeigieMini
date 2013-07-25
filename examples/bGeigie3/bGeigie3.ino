@@ -48,38 +48,24 @@
 #include <HardwareCounter.h>
 #include <sd_logger.h>
 #include <bg_sensors.h>
-#include <bg_pwr.h>
-#include <sd_reader_int.h>
 
+// bGeigie specific headers
+#include "config.h"
+#include "commands.h"
 #include "blinky.h"
+#include "bg_pwr.h"
+#include "sd_reader_int.h"
 
 // version header
 #include "version.h"
 
-#define TIME_INTERVAL 5000
-#define NX 12
+/* Available/Void labels for status values */
 #define AVAILABLE 'A'          // indicates geiger data are ready (available)
 #define VOID      'V'          // indicates geiger data not ready (void)
-#define BMRDD_EEPROM_ID 100
-#define BMRDD_ID_LEN 3
 
-#define BATT_LOW_VOLTAGE 3700       // indicate battery low when this voltage is reached
-#define BATT_SHUTDOWN_VOLTAGE 3300  // lowest voltage acceptable by power regulator
-
-// Radio options
-#define DEST_ADDR 0xFFFF      // this is the 802.15.4 broadcast address
-#define RX_ADDR_BASE 0x3000   // base for radio address. Add device number to make complete address
-#define CHANNEL 20            // transmission channel
-
-// Enable or Disable features
-#define RADIO_ENABLE 1
-#define SD_READER_ENABLE 1
-#define BG_PWR_ENABLE 1
-#define CMD_LINE_ENABLE 1
-#define HVPS_SENSING 0
-#define GPS_1PPS_ENABLE 0
-#define JAPAN_POST 0
-
+/* moving average length and number of bins (NX) */
+#define TIME_INTERVAL 5000
+#define NX 12
 
 // Geiger rolling and total count
 unsigned long shift_reg[NX] = {0};
@@ -94,31 +80,28 @@ static HardwareCounter hwc(counts, TIME_INTERVAL);
 // the line buffer for serial receive and send
 static char line[LINE_SZ];
 
+/* files name */
 char filename[18];              // placeholder for filename
+char ext_log[] = ".log";
+
+/* log sentence header */
 char hdr[] = "BNXRDD";         // BGeigie New RaDiation Detector header
 char hdr_status[] = "BNXSTS";  // Status message header
-char dev_id[BMRDD_ID_LEN+1];    // device id
-char ext_log[] = ".log";
  
 // State variables
 int rtc_acq = 0;
 int log_created = 0;
+unsigned int battery_voltage = 0;
 
 // radio variables
 #if RADIO_ENABLE
 uint8_t radio_init_status = 0;
-unsigned int radio_addr = RX_ADDR_BASE;
 #endif
 
 // SD reader variables
 #if SD_READER_ENABLE
 uint8_t sd_reader_init_status = 0;
 #endif
-
-unsigned int battery_voltage = 0;
-
-// Enable Serial output
-uint8_t serial_output_enable = 0;
 
 // a function to initialize all global variables when the device starts
 void global_variables_init()
@@ -133,8 +116,6 @@ void global_variables_init()
   total_count = 0;
   str_count = 0;
   geiger_status = VOID;
-
-  serial_output_enable = 0;
 }
 
 /* SETUP */
@@ -180,12 +161,6 @@ void setup()
     Serial.println(tmp);
   }
 
-  // Initialize interrupt on GPS 1PPS line
-#if GPS_1PPS_ENABLE  
-  pinMode(gps_1pps, INPUT);
-  BG_1PPS_INTP();
-#endif
-
   // Issue some commands to the GPS
   Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
   Serial1.println(MTK_UPDATE_RATE_1HZ);
@@ -206,16 +181,16 @@ void setup()
   sd_reader_init_status = sd_reader_setup();
 #endif
 
-  // set device id
-  pullDevId();
+  // Initialize configuration
+  config_init();
 
 #if RADIO_ENABLE
   // init chibi on channel normally 20
+  uint16_t radio_addr = RX_ADDR_BASE + (uint16_t)theConfig.id;  // generate radio address based on device id
   radio_init_status = chibiInit();  // init the radio
-  chibiSetChannel(CHANNEL); // choose the channel
-  radio_addr = getRadioAddr();    // generate radio address based on device id
-  chibiSetShortAddr(radio_addr);  // set the address
-  chibiSleepRadio(1);       // sleep the radio
+  chibiSetChannel(CHANNEL);         // choose the channel
+  chibiSetShortAddr(radio_addr);    // set the address
+  chibiSleepRadio(1);               // sleep the radio
 #endif
 
   // ***WARNING*** turn High Voltage board ON ***WARNING***
@@ -227,10 +202,7 @@ void setup()
 
   // setup command line commands
 #if CMD_LINE_ENABLE
-  cmdAdd("help", cmdPrintHelp);
-  cmdAdd("setid", cmdSetId);
-  cmdAdd("getid", cmdGetId);
-  cmdAdd("verbose", cmdVerbose);
+  registerCommands();
 #endif 
 
   // setup power management
@@ -258,8 +230,6 @@ void setup()
 /* MAIN LOOP */
 void loop()
 {
-  char tmp[25];
-
   // we check the voltage of the battery and turn
   // the device off if it lower than the lowest
   // voltage acceptable by the power regulator (3.3V)
@@ -364,7 +334,7 @@ void loop()
 
           // create the rest of the file name
           strcat(filename, "/");
-          strncat(filename, dev_id, 3);
+          sprintf(filename + strlen(filename), "%x", theConfig.id & 0xFFF); // limit to 3 last digit
           strcat(filename, "-");
           strncat(filename, gps_getData()->datetime.month, 2);
           strncat(filename, gps_getData()->datetime.day, 2);
@@ -374,6 +344,13 @@ void loop()
           writeHeader2SD(filename);
         }
         
+        // truncate the GPS coordinates if the configuration says so (default disabled)
+        if (theConfig.coord_truncation)
+        {
+          gps_t *ptr = gps_getData();
+          truncate_JP(ptr->lat, ptr->lon);
+        }
+  
         // generate timestamp. only update the start time if 
         // we printed the timestamp. otherwise, the GPS is still 
         // updating so wait until its finished and generate timestamp
@@ -382,7 +359,7 @@ void loop()
         if (rtc_acq == 0)
         {
           sd_log_last_write = 0;   // because we don't write to SD before GPS lock
-          if (serial_output_enable)
+          if (theConfig.serial_output)
             Serial.print("No GPS: ");
         }
         else
@@ -403,7 +380,7 @@ void loop()
 #endif
 
         // output through Serial too
-        if (serial_output_enable)
+        if (theConfig.serial_output)
           Serial.println(line);
 
         // Now take care of the Status message
@@ -425,7 +402,7 @@ void loop()
   #endif
       
         // show in Serial stream
-        if (serial_output_enable)
+        if (theConfig.serial_output)
           Serial.println(line);
 
       } /* gps_available */
@@ -457,15 +434,10 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
 
   gps_t *ptr = gps_getData();
 
-#if JAPAN_POST
-  // if for JP, make sure to truncate the GPS coordinates
-  truncate_JP(ptr->lat, ptr->lon);
-#endif
-  
   memset(buf, 0, LINE_SZ);
-  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
+  sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
               hdr, \
-              dev_id, \
+              (unsigned long)theConfig.id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
               ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
               cpm, \
@@ -500,16 +472,18 @@ byte bg_status_str_gen(char *buf)
   byte len;
   byte chk;
 
-  int batt, hv;
+  int batt, hv=0;
   float t, h;
-  int tf, hf;
 
   // turn sensors on
   bg_sensors_on();
   delay(100);
 
-  // read all sensors
-  hv = bgs_read_hv();        // V
+  // sense high voltage if configured so
+  if (theConfig.hv_sense)
+    hv = bgs_read_hv();        // V
+
+  // sense battery voltage
   batt = 1000*bgs_read_battery(); // mV
 
   // need to compute fractional part separately because sprintf doesn't support it
@@ -524,34 +498,37 @@ byte bg_status_str_gen(char *buf)
 
   // create string
   memset(buf, 0, LINE_SZ);
-#if HVPS_SENSING
-  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
-              hdr_status, \
-              dev_id, \
-              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
-              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
-              ptr->lat, ptr->lat_hem, \
-              ptr->lon, ptr->lon_hem, \
-              version, \
-              (int)t,  \
-              (int)h,  \
-              batt, \
-              hv, \
-              sd_log_inserted, sd_log_initialized, sd_log_last_write);
-#else
-  sprintf_P(buf, PSTR("$%s,%s,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
-              hdr_status, \
-              dev_id, \
-              ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
-              ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
-              ptr->lat, ptr->lat_hem, \
-              ptr->lon, ptr->lon_hem, \
-              version, \
-              (int)t,  \
-              (int)h,  \
-              batt, \
-              sd_log_inserted, sd_log_initialized, sd_log_last_write);
-#endif
+  if (theConfig.hv_sense)
+  {
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
+        hdr_status, \
+        (unsigned long)theConfig.id, \
+        ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+        ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+        ptr->lat, ptr->lat_hem, \
+        ptr->lon, ptr->lon_hem, \
+        version, \
+        (int)t,  \
+        (int)h,  \
+        batt, \
+        hv, \
+        sd_log_inserted, sd_log_initialized, sd_log_last_write);
+  }
+  else
+  {
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
+        hdr_status, \
+        (unsigned long)theConfig.id, \
+        ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
+        ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
+        ptr->lat, ptr->lat_hem, \
+        ptr->lon, ptr->lon_hem, \
+        version, \
+        (int)t,  \
+        (int)h,  \
+        batt, \
+        sd_log_inserted, sd_log_initialized, sd_log_last_write);
+  }
   len = strlen(buf);
   buf[len] = '\0';
 
@@ -580,62 +557,6 @@ unsigned long cpm_gen()
    return c_p_m;
 }
 
-/* read device id from EEPROM */
-void pullDevId()
-{
-  // counter for trials of reading EEPROM
-  int n = 0;
-  int N = 3;
-
-  cli(); // disable all interrupts
-
-  for (int i=0 ; i < BMRDD_ID_LEN ; i++)
-  {
-    // try to read one time
-    dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
-    n = 1;
-    // while it's not numberic, and up to N times, try to reread.
-    while ((dev_id[i] < '0' || dev_id[i] > '9') && n < N)
-    {
-      // wait a little before we retry
-      delay(10);        
-      // reread once and then increment the counter
-      dev_id[i] = (char)EEPROM.read(i+BMRDD_EEPROM_ID);
-      n++;
-    }
-
-    // catch when the read number is non-numeric, replace with capital X
-    if (dev_id[i] < '0' || dev_id[i] > '9')
-      dev_id[i] = 'X';
-  }
-
-  // set the end of string null
-  dev_id[BMRDD_ID_LEN] = NULL;
-
-  sei(); // re-enable all interrupts
-}
-
-/* Set the address for the radio based on device ID */
-unsigned int getRadioAddr()
-{
-  // prefix with two so that it never collides with broadcast address
-  unsigned int a = RX_ADDR_BASE;
-
-  // first digit
-  if (dev_id[0] != 'X')
-    a += (unsigned int)(dev_id[0]-'0') * 0x100;
-
-  // second digit
-  if (dev_id[1] != 'X')
-    a += (unsigned int)(dev_id[1]-'0') * 0x10;
-
-  // third digit
-  if (dev_id[2] != 'X')
-    a += (unsigned int)(dev_id[2]-'0') * 0x1;
-
-  return a;
-}
-
 
 /***********************************/
 /* Power on and shutdown functions */
@@ -643,7 +564,6 @@ unsigned int getRadioAddr()
 
 void power_up()
 {
-  char tmp[25];
 
 #if SD_READER_ENABLE
   if (!sd_reader_interrupted)
@@ -667,6 +587,18 @@ void power_up()
 
     // initialize sensors
     bg_sensors_on();
+
+    // re-init configuration after sleep
+    config_init();
+
+#if RADIO_ENABLE
+    // init chibi on channel normally 20
+    chibiSleepRadio(0);               // wake up the radio
+    uint16_t radio_addr = RX_ADDR_BASE + (uint16_t)theConfig.id;  // generate radio address based on device id
+    if (radio_addr != chibiGetShortAddr())
+      chibiSetShortAddr(radio_addr);    // set the address
+    chibiSleepRadio(1);               // sleep the radio
+#endif
 
     // initialize all global variables
     // set initial states of GPS, log file, Geiger counter, etc.
@@ -767,27 +699,22 @@ void writeHeader2SD(char *filename)
 #endif
   sd_log_writeln(filename, tmp);
 
-#if HVPS_SENSING
-  strcpy_P(tmp, PSTR("# HV sense enabled,yes"));
-#else
-  strcpy_P(tmp, PSTR("# HV sense enabled,no"));
-#endif
+  if (theConfig.hv_sense)
+    strcpy_P(tmp, PSTR("# HV sense enabled,yes"));
+  else
+    strcpy_P(tmp, PSTR("# HV sense enabled,no"));
   sd_log_writeln(filename, tmp);
 
-#if GPS_1PPS_ENABLE
-  strcpy_P(tmp, PSTR("# GPS 1PPS enabled,yes"));
-#else
-  strcpy_P(tmp, PSTR("# GPS 1PPS enabled,no"));
-#endif
-  sd_log_writeln(filename, tmp);
-
-#if JAPAN_POST
-  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
-  sd_log_writeln(filename, tmp);
-#else
-  strcpy_P(tmp, PSTR("# Coordinate truncation enabled,no"));
-  sd_log_writeln(filename, tmp);
-#endif
+  if (theConfig.coord_truncation)
+  {
+    strcpy_P(tmp, PSTR("# Coordinate truncation enabled,yes"));
+    sd_log_writeln(filename, tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("# Coordinate truncation enabled,no"));
+    sd_log_writeln(filename, tmp);
+  }
 
 }
 
@@ -810,7 +737,7 @@ void diagnostics()
   // Device ID
   strcpy_P(tmp, PSTR("Device ID,"));
   Serial.print(tmp);
-  Serial.println(dev_id);
+  Serial.println(theConfig.id, HEX);
 
 #if RADIO_ENABLE
   // basic radio operations
@@ -903,21 +830,24 @@ void diagnostics()
   Serial.println(tmp);
 
   // HV sensing
-#if HVPS_SENSING
-  strcpy_P(tmp, PSTR("HV sense enabled,yes"));
-  Serial.println(tmp);
-  // read all sensors
-  int hv = bgs_read_hv();  // V
-  hv = bgs_read_hv(); // read a second time to get rid of bias, or something
-  strcpy_P(tmp, PSTR("High voltage power supply,"));
-  Serial.print(tmp);
-  Serial.print(hv);
-  strcpy_P(tmp, PSTR("V"));
-  Serial.println(tmp);
-#else
-  strcpy_P(tmp, PSTR("HV sense enabled,no"));
-  Serial.println(tmp);
-#endif
+  if (theConfig.hv_sense)
+  {
+    strcpy_P(tmp, PSTR("HV sense enabled,yes"));
+    Serial.println(tmp);
+    // read all sensors
+    int hv = bgs_read_hv();  // V
+    hv = bgs_read_hv(); // read a second time to get rid of bias, or something
+    strcpy_P(tmp, PSTR("High voltage power supply,"));
+    Serial.print(tmp);
+    Serial.print(hv);
+    strcpy_P(tmp, PSTR("V"));
+    Serial.println(tmp);
+  }
+  else
+  {
+    strcpy_P(tmp, PSTR("HV sense enabled,no"));
+    Serial.println(tmp);
+  }
 
   // System free RAM
   strcpy_P(tmp, PSTR("System free RAM,"));
@@ -941,151 +871,26 @@ void diagnostics()
   Serial.println(tmp);
 #endif
 
-#if GPS_1PPS_ENABLE
-  strcpy_P(tmp, PSTR("GPS 1PPS enabled,yes"));
-  Serial.println(tmp);
-#else
-  strcpy_P(tmp, PSTR("GPS 1PPS enabled,no"));
-  Serial.println(tmp);
-#endif
+  if (theConfig.coord_truncation)
+  {
+    strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
+    Serial.println(tmp);
+  } 
+  else 
+  {
+    strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
+    Serial.println(tmp);
+  }
 
-#if JAPAN_POST
-  strcpy_P(tmp, PSTR("Coordinate truncation enabled,yes"));
-  Serial.println(tmp);
-#else
-  strcpy_P(tmp, PSTR("Coordinate truncation enabled,no"));
-  Serial.println(tmp);
-#endif
-
-  
   strcpy_P(tmp, PSTR("--- Diagnostic END ---"));
   Serial.println(tmp);
 }
 
-/**************************/
-/* command line functions */
-/**************************/
-
-void printHelp()
-{
-  char tmp[50];
-  strcpy_P(tmp, PSTR("Device id: "));
-  Serial.println(tmp);
-  Serial.println(dev_id);
-  strcpy_P(tmp, PSTR("List of commands:"));
-  Serial.println(tmp);
-  strcpy_P(tmp, PSTR("  Set new device id:     setid <id>    id is "));
-  Serial.print(tmp);
-  Serial.print(BMRDD_ID_LEN);
-  strcpy_P(tmp, PSTR(" characters long"));
-  Serial.println(tmp);
-  strcpy_P(tmp, PSTR("  Get device id:         getid"));
-  Serial.println(tmp);
-  strcpy_P(tmp, PSTR("  Enable log to serial:  verbose on"));
-  Serial.println(tmp);
-  strcpy_P(tmp, PSTR("  Disable log to serial: verbose off"));
-  Serial.println(tmp);
-  strcpy_P(tmp, PSTR("  Show this help:        help"));
-  Serial.println(tmp);
-}
-
-void cmdPrintHelp(int arg_cnt, char **args)
-{
-  printHelp();
-}  
-
-void cmdVerbose(int arg_cnt, char **args)
-{
-  if (arg_cnt != 2)
-    goto error;
-
-  if (strncmp_P(args[1], PSTR("on"), 2) == 0)
-  {
-    serial_output_enable = 1;
-    return;
-  }
-  else if (strncmp_P(args[1], PSTR("off"), 3) == 0)
-  {
-    serial_output_enable = 0;
-    return;
-  }
-
-error:
-  char tmp[30];
-  strcpy_P(tmp, "Synthax: verbose <on/off>");
-  Serial.println(tmp);
-  return;
-}
-
-/* set new device id in EEPROM */
-void cmdSetId(int arg_cnt, char **args)
-{
-  char tmp[40];
-  int len = 0;
-
-  if (arg_cnt != 2)
-    goto errorSetId;
-
-  while (args[1][len] != NULL)
-    len++;
-
-  if (len != BMRDD_ID_LEN)
-    goto errorSetId;
-
-  // write ID to EEPROM
-  for (int i=0 ; i < BMRDD_ID_LEN ; i++)
-    EEPROM.write(BMRDD_EEPROM_ID+i, byte(args[1][i]));
-
-  // pull dev id from the EEPROM so that we check it was successfully written
-  pullDevId();
-  strcpy_P(tmp, PSTR("Device id: "));
-  Serial.print(tmp);
-  Serial.print(dev_id);
-  if (strncmp(dev_id, args[1], BMRDD_ID_LEN) == 0)
-    strcpy_P(tmp, PSTR(" - success."));
-  else
-    strcpy_P(tmp, PSTR(" - failure."));
-  Serial.println(tmp);
-    
-  return; // happyily
-
-errorSetId:
-  strcpy_P(tmp, PSTR("Synthax: setid <id>     id is "));
-  Serial.print(tmp);
-  Serial.print(BMRDD_ID_LEN);
-  strcpy_P(tmp, PSTR(" characters long"));
-  Serial.println(tmp);
-}
-
-void cmdGetId(int arg_cnt, char **args)
-{
-  pullDevId();
-  Serial.print("Device id: ");
-  Serial.println(dev_id);
-}
-
-
-/**********************/
-/* GPS 1PPS Interrupt */
-/**********************/
-
-#if GPS_1PPS_ENABLE
-ISR(BG_1PPS_INT)
-{
-  int val = *portInputRegister(digitalPinToPort(gps_1pps)) & digitalPinToBitMask(gps_1pps);
-  if (val)
-  {
-    // make good use of GPS 1PPS here
-    rtc_pulse++;
-  }
-}
-#endif
 
 /**********************/
 /* JP truncation code */
 /**********************/
 
-#if JAPAN_POST
 /* 
  * Truncate the latitude and longitude according to
  * Japan Post requirements
@@ -1143,5 +948,4 @@ void truncate_JP(char *lat, char *lon)
   lon[9] = '0' + (minutes%10);
 
 }
-#endif /* JAPAN_POST */
 

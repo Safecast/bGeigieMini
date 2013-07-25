@@ -25,6 +25,8 @@
 
 #define LUN_MEDIA_BLOCKS           (SDCardManager_GetNbBlocks() / TOTAL_LUNS)
 
+extern uint8_t global_disk_read_only;
+
 /* Function Prototypes: */
 void SDCardManager_Init(void);
 uint32_t SDCardManager_GetNbBlocks(void);

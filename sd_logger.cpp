@@ -38,7 +38,7 @@
 #include <SD.h>
 #include <avr/io.h>
 #include "sd_logger.h"
-#include "sd_reader_int.h"
+//#include "sd_reader_int.h"
 
 #define LINE_MAX_SIZE 100
 
