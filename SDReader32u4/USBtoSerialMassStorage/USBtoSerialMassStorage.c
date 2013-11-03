@@ -257,8 +257,11 @@ void SetupHardware(void)
 	LED_init();
 
   // Setup serial stream
-	//Serial_Init(9600, false);
-  //Serial_CreateStream(NULL);
+  // The serial speed is hardcoded to the spec used by the 1284p processor
+  UCSR1C = (1 << UCSZ11) | (1 << UCSZ10); // Serial 8N1
+	UCSR1A = 0;
+	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1)); // enables interrupt/TX/RX operations
+	UBRR1  = SERIAL_UBBRVAL(38400);
   
   /* configure IRQ pin and set low */
   configure_pin_irq();
@@ -408,6 +411,8 @@ ISR(USART1_RX_vect, ISR_BLOCK)
  */
 void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCInterfaceInfo)
 {
+  // We disable this part of the code as the speed of the serial is hardcoded to that of 1284p
+#if 0
 	uint8_t ConfigMask = 0;
 
 	switch (CDCInterfaceInfo->State.LineEncoding.ParityType)
@@ -452,6 +457,7 @@ void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCI
 	UCSR1C = ConfigMask;
 	UCSR1A = (1 << U2X1);
 	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1));
+#endif
 }
 
 #if SOFT_RESET

@@ -128,7 +128,7 @@ void setup()
   bg_led_off();
   
   // init serial
-  Serial.begin(57600);
+  Serial.begin(38400);
   strcpy_P(tmp, PSTR("*** Welcome to bGeigie ***"));
   Serial.println(tmp);
   strcpy_P(tmp, PSTR("Version-"));
