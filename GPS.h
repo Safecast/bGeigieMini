@@ -42,6 +42,8 @@
 #define MTK_INIT_MSG "$PMTK011,MTKGPS*08"
 
 #define MTK_HOT_RESTART "$PMTK101*32"
+#define MTK_COLD_START "$PMTK103*30"
+#define MTK_FULL_COLD_START "$PMTK104*37"
 
 #define MTK_STANDBY_MODE "$PMTK161,0*28"
 #define MTK_STANDBY_MODE_ACK "$PMTK161,0*28"
@@ -72,6 +74,9 @@
 #define MTK_UPDATE_RATE_1HZ "$PMTK220,1000*1F"
 #define MTK_UPDATE_RATE_10HZ "$PMTK220,100*1F"
 #define MTK_UPDATE_RATE_ACK "$PMTK001,220,3*30"
+
+#define SBAS_ENABLE "$PMTK313,1*2E"
+#define DGPS_WAAS_ON "$PMTK301,2*2E"
 
 // GPS field size in characters
 #define LINE_SZ         100
@@ -128,6 +133,7 @@ typedef struct
 
 // 'public' methods
 void gps_init(HardwareSerial *serial, char *line);
+void gps_send_command(char *cmd);
 void gps_update();
 int gps_available();
 gps_t *gps_getData();

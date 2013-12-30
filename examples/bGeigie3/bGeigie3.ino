@@ -121,7 +121,7 @@ void global_variables_init()
 /* SETUP */
 void setup()
 {
-  char tmp[30];
+  char tmp[100];
 
   // init led
   bg_led_config();
@@ -162,8 +162,14 @@ void setup()
   }
 
   // Issue some commands to the GPS
-  Serial1.println(MTK_SET_NMEA_OUTPUT_RMCGGA);
-  Serial1.println(MTK_UPDATE_RATE_1HZ);
+  strcpy_P(tmp, PSTR(MTK_SET_NMEA_OUTPUT_RMCGGA));
+  gps_send_command(tmp); // Set output to RMC and GGA
+  strcpy_P(tmp, PSTR(MTK_UPDATE_RATE_1HZ));
+  gps_send_command(tmp); // Output rate at 1 Hz
+  strcpy_P(tmp, PSTR(SBAS_ENABLE));
+  gps_send_command(tmp); // Enable SBAS
+  strcpy_P(tmp, PSTR(DGPS_WAAS_ON));
+  gps_send_command(tmp); // Enable DGPS WAAS
 
   // power up SD card
   pinMode(sd_pwr, OUTPUT);

@@ -56,6 +56,12 @@ void gps_init(HardwareSerial *serial, char *line)
   memset((void *)&_gps_data, 0, sizeof(gps_t));
 }
 
+// A simple wrapper to send commands to the GPS through serial
+void gps_send_command(char *cmd)
+{
+  _serial->println(cmd);
+}
+
 // Availability indicator
 int gps_available()
 {

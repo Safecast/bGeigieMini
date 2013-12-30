@@ -1,10 +1,9 @@
 
 #include "commands.h"
-
 #include "config.h"
 
+#include <GPS.h>
 #include <Cmd.h>
-
 #include <stdlib.h>
 
 /* a couple of strings in flash mem */
@@ -17,11 +16,13 @@ char PROGMEM file_str[] = "file";
 char help_str[] = "help";
 char config_str[] = "config";
 char diagnostics_str[] = "diagnostics";
+char gpsfullcold_str[] = "gpsfullcold";
 
 /* definitions */
 void cmdConfig(int arg_cnt, char **args);
 void cmdPrintHelp(int arg_cnt, char **args);
 void cmdDiagnostics(int arg_cnt, char **args);
+void cmdGPSFullCold(int arg_cnt, char **args);
 void showConfig(config_t *cfg);
 
 extern void diagnostics();
@@ -35,6 +36,7 @@ void registerCommands()
   cmdAdd(help_str, cmdPrintHelp);
   cmdAdd(config_str, cmdConfig);
   cmdAdd(diagnostics_str, cmdDiagnostics);
+  cmdAdd(gpsfullcold_str, cmdGPSFullCold);
 }
 
 void cmdConfig(int arg_cnt, char **args)
@@ -237,6 +239,8 @@ void cmdPrintHelp(int arg_cnt, char **args)
   Serial.println(tmp);
   strcpy_P(tmp, PSTR("  diagnostics         Run diagnostic of device."));
   Serial.println(tmp);
+  strcpy_P(tmp, PSTR("  gpsfullcold         Do a full cold restart of the GPS."));
+  Serial.println(tmp);
   strcpy_P(tmp, PSTR("  help                Show this help"));
   Serial.println(tmp);
 }  
@@ -247,3 +251,12 @@ void cmdDiagnostics(int arg_cnt, char **args)
   return;
 }
 
+void cmdGPSFullCold(int arg_cnt, char **args)
+{
+  char tmp[100];
+  strcpy_P(tmp, PSTR(MTK_FULL_COLD_START));
+  gps_send_command(tmp);
+  strcpy_P(tmp, PSTR("  Issued full cold restart command to the GPS."));
+  Serial.println(tmp);
+  return;
+}
