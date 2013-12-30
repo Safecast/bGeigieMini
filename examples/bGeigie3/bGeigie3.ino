@@ -435,7 +435,7 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
   gps_t *ptr = gps_getData();
 
   memset(buf, 0, LINE_SZ);
-  sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s,%s"),  \
+  sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%ld,%ld,%ld,%c,%s,%s,%s,%s,%s,%s,%s,%s"),  \
               hdr, \
               (unsigned long)theConfig.id, \
               ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
@@ -448,7 +448,6 @@ byte gps_gen_timestamp(char *buf, unsigned long counts, unsigned long cpm, unsig
               ptr->lon, ptr->lon_hem, \
               ptr->altitude, \
               ptr->status, \
-              ptr->num_sat, \
               ptr->precision, \
               ptr->quality);
    len = strlen(buf);
@@ -500,13 +499,14 @@ byte bg_status_str_gen(char *buf)
   memset(buf, 0, LINE_SZ);
   if (theConfig.hv_sense)
   {
-    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,%s,v%s,%d,%d,%d,%d,%d,%d,%d"),  \
         hdr_status, \
         (unsigned long)theConfig.id, \
         ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
         ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
         ptr->lat, ptr->lat_hem, \
         ptr->lon, ptr->lon_hem, \
+        ptr->num_sat, \
         version, \
         (int)t,  \
         (int)h,  \
@@ -516,13 +516,14 @@ byte bg_status_str_gen(char *buf)
   }
   else
   {
-    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
+    sprintf_P(buf, PSTR("$%s,%lx,20%s-%s-%sT%s:%s:%sZ,%s,%s,%s,%s,%s,v%s,%d,%d,%d,,%d,%d,%d"),  \
         hdr_status, \
         (unsigned long)theConfig.id, \
         ptr->datetime.year, ptr->datetime.month, ptr->datetime.day,  \
         ptr->datetime.hour, ptr->datetime.minute, ptr->datetime.second, \
         ptr->lat, ptr->lat_hem, \
         ptr->lon, ptr->lon_hem, \
+        ptr->num_sat, \
         version, \
         (int)t,  \
         (int)h,  \
