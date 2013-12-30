@@ -86,7 +86,7 @@ unsigned long HardwareCounter::count()
   TCCRnB = TCCRnB & ~7;   // Gate Off  / Counter Tn stopped
   _count = TCNTn;         // Set the count in object variable
   TCCRnB = TCCRnB | 7;    // restart counting
-  return 0xfffful*g_ovf_n + _count;
+  return 0x10000ul*g_ovf_n + _count;
 
 }
 
