@@ -25,7 +25,9 @@ void cmdDiagnostics(int arg_cnt, char **args);
 void cmdGPSFullCold(int arg_cnt, char **args);
 void showConfig(config_t *cfg);
 
+// some functions define in the bGeigie3.ino file.
 extern void diagnostics();
+extern void gps_setup();
 
 /**************************/
 /* command line functions */
@@ -257,6 +259,9 @@ void cmdGPSFullCold(int arg_cnt, char **args)
   strcpy_P(tmp, PSTR(MTK_FULL_COLD_START));
   gps_send_command(tmp);
   strcpy_P(tmp, PSTR("  Issued full cold restart command to the GPS."));
+  Serial.println(tmp);
+  gps_setup();
+  strcpy_P(tmp, PSTR("  Re-setup the GPS."));
   Serial.println(tmp);
   return;
 }
