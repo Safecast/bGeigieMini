@@ -201,7 +201,6 @@ When connecting the device to a computer with a USB mini-B cable, a serial inter
 the main controller is available for configuration and debugging.
 
 * The `config` command can be used to change the configuration of the device.
-
   
         *************** CMD *******************
         CMD >> config help
@@ -218,6 +217,8 @@ the main controller is available for configuration and debugging.
           config save [eeprom/file]      Writes configuration to EEPROM or SD card.
           config copy [eeprom/file]      Copy configuration from EEPROM or SD card to memory.
           config help                    Show this help.
+
+    To make any configuration change permanent, do not forget to type `config save`.
   
 
 * The `gpsfullcold` command forces the GPS to do a full cold restart, meaning the

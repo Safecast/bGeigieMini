@@ -76,6 +76,7 @@ int humidity = -1;
 int battery = -1;
 int hv = -1;
 int sd_status = 1;
+int vcc = -1; // VCC of PlusShield
 
 // link status variable
 char lnk_flag = 'X';
@@ -231,7 +232,11 @@ void loop()
 
       // Status info on second line
       lcd.setCursor(0, 1);
-      if (battery != -1 && battery < 3400)
+      if (sd_status == 0)
+      {
+        strcpy_P(line, PSTR("SD FAIL!"));
+      }
+      else if (battery != -1 && battery < 3400)
       {
         strcpy_P(line, PSTR("LOW BATT"));
       }
@@ -243,10 +248,6 @@ void loop()
       {
         strcpy_P(line, PSTR("NOGPS"));
         strcpy(line+5, dev_id);
-      }
-      else if (sd_status == 0)
-      {
-        strcpy_P(line, PSTR("SD FAIL!"));
       }
       else if (gps_flag == 'A')
       {
@@ -380,31 +381,53 @@ void extract_data(char *buf, int L)
   {
 
     // temperature reading
-    if (tok[8][0] != 0)
-      temperature = atoi(tok[8]);
+    if (tok[9][0] != 0)
+      temperature = atoi(tok[9]);
     else
       temperature = -1;
 
     // humidity reading
-    if (tok[9][0] != 0)
-      humidity = atoi(tok[9]);
+    if (tok[10][0] != 0)
+      humidity = atoi(tok[10]);
     else
       humidity = -1;
 
     // battery
-    if (tok[10][0] != 0)
-      battery = atoi(tok[10]);
+    if (tok[11][0] != 0)
+      battery = atoi(tok[11]);
     else
       battery = -1;
 
     // high voltage
-    if (tok[11][0] != 0)
-      hv = atoi(tok[11]);
+    if (tok[12][0] != 0)
+      hv = atoi(tok[12]);
     else
       hv = -1;
 
     // SD card status
-    if (tok[12][0] != '1' || tok[13][0] != '1' || tok[14][0] != '1')
+    if (tok[13][0] != '1' || tok[14][0] != '1' || tok[15][0] != '1')
+      sd_status = 0;
+    else
+      sd_status = 1;
+
+  }
+  else if (strcmp(tok[0], "$BMSTS") == 0)
+  {
+
+    // battery
+    if (tok[8][0] != 0)
+      battery = strtol(tok[8], NULL, 10);
+    else
+      battery = -1;
+
+    // VCC of bGeigie (only PlusShield so far)
+    if (tok[9][0] != 0)
+      vcc = strtol(tok[9], NULL, 10);
+    else
+      vcc = -1;
+
+    // SD card status
+    if (tok[10][0] != '1' || tok[11][0] != '1' || tok[12][0] != '1')
       sd_status = 0;
     else
       sd_status = 1;
