@@ -120,6 +120,8 @@ __Optional__: FTDI breakout board **3.3V**, for example this [one](https://www.s
 
 ## Install
 
+A comprehensive firmware upgrade environment can be found [here](https://github.com/Safecast/SCbG3-hexes).
+
 ### Environment
 
 1. [Download](http://www.obdev.at/products/crosspack/index-de.html) and install the CrossPack for AVR toolchain.
@@ -135,7 +137,7 @@ This assumes you already have homebrew installed.
     brew install avr-libc
     brew install avrdude --with-usb
 
-(Instructions from [here](http://www.rocketnumbernine.com/2011/12/16/installing-avr-gcc-on-osx). Tested on Mac OS X Mountain Lion 10.8.4))
+([Source](http://www.rocketnumbernine.com/2011/12/16/installing-avr-gcc-on-osx). Tested on Mac OS X Mountain Lion 10.8.4))
 
 ### Upload bGeigie3 firmware to main microcontroller
 
