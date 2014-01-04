@@ -90,14 +90,17 @@ Sample C code to compute the checksum is given.
 
 The checksum is then always encoded as a string of two ASCII characters giving the hexadecimal value of the checksum.
 
-## Setup System on Mac OS X
+## System Setup
 
 ### Software
 
-* Patched Arduino IDE [download](https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121019-macosx.zip)
-* CrossPack for AVR [download](http://www.obdev.at/products/crosspack/index-de.html)
-* FTDI USB-Serial drivers [x64](http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg) [x86](http://www.ftdichip.com/drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg) 
-  [PPC](http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg)
+* Patched Arduino IDE ([macosx](https://github.com/downloads/fakufaku/Arduino/arduino-Safecast-20121019-macosx.zip))
+* CrossPack for AVR ([macosx](http://www.obdev.at/products/crosspack/index-de.html))
+
+__Optional__: FTDI USB-Serial drivers (macosx:
+[x64](http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg)
+[x86](http://www.ftdichip.com/drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg)
+[PPC](http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_2_18.dmg))
 
 ### Libraries
 
@@ -109,10 +112,11 @@ The checksum is then always encoded as a string of two ASCII characters giving t
 
 ### Hardware
 
-* FTDI breakout board *3.3V*, for example this [one](https://www.sparkfun.com/products/9873) or this [one](https://www.adafruit.com/products/284)
 * USB male A to male mini B cable such as this [one](https://www.adafruit.com/products/260)
 * A [Pocket AVR Programmer](https://www.sparkfun.com/products/9825) from SparkFun. [Using another programmer type than USBTiny type requires editing a makefile.]
-* A bGeigie2 board. The [PCB design files](https://github.com/Safecast/bGeigie2) are available under CC-BY-SA 3.0 license.
+* A bGeigie3 board. The [PCB design files](https://github.com/Safecast/bGeigie3) are available under CC-BY-SA 3.0 license.
+
+__Optional__: FTDI breakout board **3.3V**, for example this [one](https://www.sparkfun.com/products/9873) or this [one](https://www.adafruit.com/products/284)
 
 ## Install
 
@@ -133,76 +137,36 @@ This assumes you already have homebrew installed.
 
 (Instructions from [here](http://www.rocketnumbernine.com/2011/12/16/installing-avr-gcc-on-osx). Tested on Mac OS X Mountain Lion 10.8.4))
 
-### Upload bootloader to main microcontroller
+### Upload bGeigie3 firmware to main microcontroller
 
 1. Launch the Arduino-Safecast IDE
 2. Connect Pocket AVR Programmer to the ISP Pin header. Pin 1 of the ISP is marked on the PCB. Make sure the switch on the programmer is set to `No power`. Make sure the battery it attached to the board and has some charge. Make sure no SD card is inserted.
   ![ISP setting](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/isp_setting.jpg)
 3. Pull low (off) the left switch on the small black dual switch on the board.
   ![Switch Setting 1284p](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_1284p.jpg)
-4. In Arduino IDE, select `Tools -> Programmer -> USBtinyISP`, and `Tools -> Board -> Mighty 1284p 8MHz using Optiboot`. Finally `Tools -> Burn Bootloader`.
-5. Pull back up the left small switch. Both switches should be up (on) now.
+4. In Arduino IDE, open `File -> Examples -> SafecastBGeigie -> bGeigie3`.
+5. Select `Tools -> Programmer -> USBtinyISP` (or whatever ISP you are using), and `Tools -> Board -> Mighty 1284p 8MHz using Optiboot`. 
+6. Finally, launch programming by `File -> Upload Using Programmer`.
+7. Pull back up the left small switch. Both switches should be up (on) now.
   ![Switch normal mode](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/normal_setting.jpg)
 
 ### Upload USB controller firmware
 
-1. Launch the Arduino-Safecast IDE
-2. Connect Pocket AVR Programmer to the ISP Pin header. Pin 1 of the ISP is marked on the PCB. Make sure the switch on the programmer is set to `No power`. Make sure the battery it attached to the board and has some charge. Make sure no SD card is inserted.
+1. Connect Pocket AVR Programmer to the ISP Pin header. Pin 1 of the ISP is marked on the PCB. Make sure the switch on the programmer is set to `No power`. Make sure the battery it attached to the board and has some charge. Make sure no SD card is inserted.
   ![ISP setting](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/isp_setting.jpg)
-3. Pull low (off) the small switch on the right of the black dual switch.
+2. Pull low (off) the small switch on the right of the black dual switch.
   ![Switch Setting 32u4](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/program_32u4.jpg)
-4. In a terminal, go to `SDReader32u4/USBtoSerialMassStorage`.
+3. In a terminal, go to `SDReader32u4/USBtoSerialMassStorage`.
 
         cd <arduino_libraries_path>/SDReader32u4/USBtoSerialMassStorage
 
-5. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
+4. Compile and upload SD reader firmware to USB microcontroller. If not using a USBtinyISP kind of AVR programmer, the makefile needs to be modified before this step.
 
         make avrdude
 
-6. Pull back up the left small switch. Both switches should be up (on) now.
+5. Pull back up the left small switch. Both switches should be up (on) now.
   ![Switch normal mode](https://dl.dropbox.com/u/78009186/Photos/bGeigie3/normal_setting.jpg)
 
-### Upload bGeigie3 firmware
-
-1. Launch the Arduino-Safecast IDE
-2. Plug the FTDI breakout board on the board as shown on the picture.
-  [picture]
-3. Select Serial port corresponding to FTDI breakout board from `Tools -> Serial Port -> [my port]`.
-4. Open the bGeigie3 sketch from menu `Examples->SafecastBGeigie->bGeigie3`.
-5. Press upload button (or `File -> Upload`).
-6. Open the Serial terminal by pressing button (or `Tools -> Serial Monitor`), you should see something like
-
-        *** Welcome to bGeigie ***
-        Version-3.2.2
-        GPS start time,590ms
-        --- Diagnostic START ---
-        Version,3.2.2
-        Device ID,301
-        Radio enabled,yes
-        Radio initialized,yes
-        Radio address,3301
-        Radio channel,20
-        GPS type MTK,yes
-        GPS system startup,yes
-        SD inserted,yes
-        SD initialized,yes
-        SD open file,yes
-        SD read write,yes
-        SD reader enabled,yes
-        SD reader initialized,yes
-        Temperature,30C
-        Humidity,45%
-        Battery voltage,4198mV
-        HV sense enabled,no
-        System free RAM,13639B
-        Power management enabled,yes
-        Command line interface enabled,yes
-        Coordinate truncation enabled,no
-        --- Diagnostic END ---
-        Starting now!
-        bGeigie sleeps... good night.
-
-    Congratulations, we're half-way there.
 
 ## Device configuration
 
@@ -220,29 +184,86 @@ configuration according to it.  It will then save the new configuration in
 EEPROM. If the file should disappear or be corrupted, it is recreated from
 EEPROM.
 
-* __ID__ The serial number of the device. A maximum 4-digits hex number. For the bGeigie-NX, the convention is to use a 3-digits hex number starting with `3`. The id `0xFFFF` is reserved for unconfigured devices.
+* __ID__ The serial number of the device. A maximum 4-digits hex number. For
+  the bGeigie-NX, the convention is to use a 3-digits hex number starting with
+  `3`. The id `0xFFFF` is reserved for unconfigured devices.
 * __SerialOutput__: [0/1] This enables display of log lines through the serial connection.
 * __CoordTrunc__: [0/1] When set to one, this enables the truncation of GPS coordinates to a 100x100m grid.
 * __HVSense__: [0/1] When set to one, the high-voltage sensing is activated. This is useful for HV boards that have a sensing output.
 * __SDRW__: [0/1] When set to one, the SD card is writable through the USB reader. Otherwise it is read-only.
 
 It possible to modify these options by changing the file, or by connecting
-through the serial port and use the `config` command.  This command has
-following usage.
+through the serial port and use the `config` command described in the following secton.
 
-    Usage: config <cmd> [args]
-    List of commands:
-      config show                    Show current configuration.
-      config show [eeprom/file]      Show eeprom/file configuration.
-      config ID [id]                 Set device serial number. This is a 4-digit hex number
-      config SerialOutput [on/off]   Toggle serial output on or off.
-      config CoordTrunc [on/off]     Enable or disable coordinate truncation to 100x100m grid.
-      config HVSense [on/off]        Enable or disable high-voltage output sensing.
-      config SDRW [on/off]           Enable or disable write permission to SD card through reader.
-      config save                    Writes configuration to EEPROM and SD card.
-      config save [eeprom/file]      Writes configuration to EEPROM or SD card.
-      config copy [eeprom/file]      Copy configuration from EEPROM or SD card to memory.
-      config help                    Show this help.
+### Serial interface
+
+When connecting the device to a computer with a USB mini-B cable, a serial interface with
+the main controller is available for configuration and debugging.
+
+* The `config` command can be used to change the configuration of the device.
+
+  
+        *************** CMD *******************
+        CMD >> config help
+        Usage: config <cmd> [args]
+        List of commands:
+          config show                    Show current configuration.
+          config show [eeprom/file]      Show eeprom/file configuration.
+          config ID [id]                 Set device serial number. This is a 4-digit hex number
+          config SerialOutput [on/off]   Toggle serial output on or off.
+          config CoordTrunc [on/off]     Enable or disable coordinate truncation to 100x100m grid.
+          config HVSense [on/off]        Enable or disable high-voltage output sensing.
+          config SDRW [on/off]           Enable or disable write permission to SD card through reader.
+          config save                    Writes configuration to EEPROM and SD card.
+          config save [eeprom/file]      Writes configuration to EEPROM or SD card.
+          config copy [eeprom/file]      Copy configuration from EEPROM or SD card to memory.
+          config help                    Show this help.
+  
+
+* The `gpsfullcold` command forces the GPS to do a full cold restart, meaning the
+  current almanach, as well as any setting or configuration are dismissed.
+  This can sometimes be necessary to ensure that the GPS module has a
+  predictable behavior.
+
+* The `diagnostics` command run a diagnostic of the device and display the result.
+
+        *************** CMD *******************
+        CMD >> diagnostics
+        --- Diagnostic START ---
+        Version,3.2.6
+        Device ID,301
+        Radio enabled,yes
+        Radio initialized,yes
+        Radio address,3301
+        Radio channel,20
+        GPS type MTK,yes
+        GPS system startup,yes
+        SD inserted,yes
+        SD initialized,yes
+        SD open file,yes
+        SD read write,yes
+        SD reader enabled,yes
+        SD reader initialized,yes
+        Temperature,24C
+        Humidity,52%
+        Battery voltage,4088mV
+        HV sense enabled,no
+        System free RAM,13569B
+        Power management enabled,yes
+        Command line interface enabled,yes
+        Coordinate truncation enabled,yes
+        --- Diagnostic END ---
+
+
+* The `help` command gives a summary of the commands available through the serial interface.
+
+        *************** CMD *******************
+        CMD >> help
+        List of commands:
+          config <cmd> [arg]  Configure device.
+          diagnostics         Run diagnostic of device.
+          gpsfullcold         Do a full cold restart of the GPS.
+          help                Show this help
 
 ### Prepare the SD card to be used with Mac OS X
 
@@ -263,10 +284,12 @@ The sketches given in examples are the actual firmware of the different Safecast
 * bGeigieMini
 * bGeigieClassic
 * bGeigieNinja
+* bGeigieNinja2
 * bGeigieConfigBurner
 
 ## License
 
+    Copyright (c) 2013-2014, Robin Scheibler aka FakuFaku
     Copyright (c) 2011-2012, Robin Scheibler aka FakuFaku, Christopher Wang aka Akiba
     All rights reserved.
 
