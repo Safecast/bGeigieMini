@@ -242,7 +242,7 @@ void loop()
       }
       else if (hv != -1 && hv < 450)
       {
-        strcpy_P(line, PSTR("HV LOW"));
+        strcpy_P(line, PSTR("HV LOW  "));
       }
       else if (gps_flag == 'V')
       {
