@@ -17,7 +17,7 @@ F_USB        = $(F_CPU)
 OPTIMIZATION = s
 TARGET       = USBtoSerialMassStorage
 SRC          = $(TARGET).c Descriptors.c Lib/SDCardManager.c Lib/SCSI.c Lib/Timer.c Lib/sd_raw.c $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS) $(LUFA_SRC_SERIAL)
-LUFA_PATH    = ../LUFA_120730/LUFA
+LUFA_PATH    = ../LUFA/LUFA
 CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/ -Wall
 LD_FLAGS     =
 

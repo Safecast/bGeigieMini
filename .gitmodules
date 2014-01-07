@@ -1,0 +1,3 @@
+[submodule "SDReader32u4/LUFA"]
+	path = SDReader32u4/LUFA
+	url = https://github.com/abcminiuser/lufa.git
