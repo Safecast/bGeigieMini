@@ -107,7 +107,7 @@ int sd_reader_setup()
   // configure SPI
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);
-  SPI.setClockDivider(SPI_CLOCK_DIV4);  // 2X speed not working now
+  SPI.setClockDivider(SPI_CLOCK_DIV8);  // 2X speed not working now
   SPI.begin();
 
   pinMode(sd_detect, INPUT);

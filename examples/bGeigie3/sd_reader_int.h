@@ -51,7 +51,8 @@ extern uint8_t sd_reader_state;
 // buffer SIZE
 #define SD_READER_BUF_SIZE 512
 
-#define spi_delay() delayMicroseconds(20)
+//#define spi_delay() delayMicroseconds(20)
+#define spi_delay() delayMicroseconds(16)
 
 #define DEBUG 0
 #if DEBUG
