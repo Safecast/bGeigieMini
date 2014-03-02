@@ -729,7 +729,7 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
   if(sd_raw_send_command(CMD_REQ_INFO, 0))
     return 0;
 
-  // Receive CID
+  // Receive CID (16 bytes for CID and 2 bytes dummy CRC)
   for(uint8_t i = 0; i < 18; ++i)
   {
     uint8_t b = sd_raw_rec_byte();
@@ -778,7 +778,7 @@ uint8_t sd_raw_get_info(struct sd_raw_info* info)
   uint32_t csd_c_size = 0;
 #endif
 
-  // Receive CSD
+  // Receive CSD (16 bytes for CSD and 2 bytes dummy CRC)
   for(uint8_t i = 0; i < 18; ++i)
   {
     uint8_t b = sd_raw_rec_byte();

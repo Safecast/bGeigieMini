@@ -48,11 +48,12 @@
 #define SD_READER_DISABLED 2
 extern uint8_t sd_reader_state;
 
-// buffer SIZE
+// buffer and BLOCK SIZE
+#define SD_BLOCK_SIZE 512
 #define SD_READER_BUF_SIZE 512
 
 //#define spi_delay() delayMicroseconds(20)
-#define spi_delay() delayMicroseconds(16)
+#define spi_delay() delayMicroseconds(50)
 
 #define DEBUG 0
 #if DEBUG

@@ -77,8 +77,12 @@ char geiger_status = VOID;
 // Hardware counter
 static HardwareCounter hwc(counts, TIME_INTERVAL);
 
-// the line buffer for serial receive and send
-static char line[LINE_SZ];
+// the line buffer for serial1 and GPS
+static char gps_line[LINE_SZ];
+
+// the line buffer for Serial
+#define SERIAL_LINE_SIZE 256
+static char line[SERIAL_LINE_SIZE];
 
 /* files name */
 char filename[18];              // placeholder for filename
@@ -153,7 +157,7 @@ void setup()
 
   // initialize GPS using second Serial connection
   Serial1.begin(9600);
-  gps_init(&Serial1, line);
+  gps_init(&Serial1, gps_line);
   bg_gps_pwr_config();
   bg_gps_on();
 
@@ -593,6 +597,10 @@ void power_up()
 #if SD_READER_ENABLE
     sd_reader_init_status = sd_reader_setup();
 #endif
+
+    // flush Serial0 (32u4)
+    while(Serial.available())
+      Serial.read();
 
     // flush Serial1 (GPS) before restarting GPS
     while(Serial1.available())

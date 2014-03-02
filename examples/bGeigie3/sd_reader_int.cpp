@@ -40,6 +40,8 @@
 #include "sd_reader_int.h"
 #include "sd_logger.h"
 
+#define SERIAL_DEBUG 0
+
 // SD card object
 Sd2Card card;
 
@@ -247,6 +249,9 @@ ISR(BG_32U4_IRQ)
 void sd_reader_process_interrupt()
 {
 
+  uint8_t sreg_old = SREG;
+  cli(); // disable interrupt
+
   uint8_t cmd = 0;
   uint32_t arg = 0;
 
@@ -312,7 +317,9 @@ void sd_reader_process_interrupt()
     switch (cmd)
     {
       case 0x40 | CMD_SD_ON:
-        //Serial.println("SD on cmd.");
+#if SERIAL_DEBUG
+        Serial.println("SD on cmd.");
+#endif
         // if we get here, it is success!
         select_32u4();
         spi_tx_byte(R1_SUCCESS);
@@ -320,7 +327,9 @@ void sd_reader_process_interrupt()
         break;
 
       case 0x40 | CMD_SD_OFF:
-        //Serial.println("SD off cmd.");
+#if SERIAL_DEBUG
+        Serial.println("SD off cmd.");
+#endif
         // turn SD card off
         //sd_power_off();
         sd_reader_state = SD_READER_IDLE;
@@ -331,22 +340,32 @@ void sd_reader_process_interrupt()
         break;
 
       case 0x40 | CMD_READ_SINGLE_BLOCK:
-        //Serial.println("SD read block cmd.");
+#if 0
+        Serial.print("SD read block ");
+        Serial.println(arg >> 9);
+#endif
         sd_reader_read_block(arg);
         break;
 
       case 0x40 | CMD_WRITE_SINGLE_BLOCK:
-        //Serial.println("SD write block cmd.");
+#if 0
+        Serial.print("SD write block ");
+        Serial.println(arg >> 9);
+#endif
         sd_reader_write_block(arg);
         break;
 
       case 0x40 | CMD_REQ_INFO:
-        //Serial.println("SD info req cmd.");
+#if SERIAL_DEBUG
+        Serial.println("SD info req cmd.");
+#endif
         sd_reader_get_info();
         break;
 
       case 0x40 | CMD_IS_RW:
-        //Serial.println("Card write status req cmd.");
+#if SERIAL_DEBUG
+        Serial.println("Card write status req cmd.");
+#endif
         select_32u4();
         if (theConfig.sd_rw == 1)
           spi_tx_byte(R1_SUCCESS);
@@ -365,6 +384,8 @@ void sd_reader_process_interrupt()
   }
 
   bg_led_off();
+
+  SREG = sreg_old; // enable interrupt
 
 }
 
@@ -390,7 +411,7 @@ uint8_t sd_reader_read_block(uint32_t arg)
   spi_tx_byte(0xfe);  // magic number
   spi_delay();
 
-  for (uint16_t i = 0 ; i < 512 ; i++) // send block
+  for (uint16_t i = 0 ; i < SD_BLOCK_SIZE ; i++) // send block
   {
     spi_tx_byte(buffer[i]);
     spi_delay();
@@ -423,7 +444,7 @@ uint8_t sd_reader_write_block(uint32_t arg)
   spi_delay();
 
 
-  for (uint16_t i = 0 ; i < 512 ; i++) // send block
+  for (uint16_t i = 0 ; i < SD_BLOCK_SIZE ; i++) // send block
   {
     buffer[i] = spi_rx_byte();
     spi_delay();
@@ -469,7 +490,7 @@ void sd_reader_get_info()
     return;
   }
 
-  if (!card.readCSD((csd_t *)(buffer+16)))
+  if (!card.readCSD((csd_t *)(buffer+sizeof(cid_t))))
   { // fail
     select_32u4();
     spi_tx_byte(0xff);
@@ -500,7 +521,7 @@ void sd_reader_get_info()
   // send CSD
   for (i = 0 ; i < 16 ; i++)
   {
-    spi_tx_byte(buffer[16+i]);
+    spi_tx_byte(buffer[i+sizeof(cid_t)]);
     delayMicroseconds(20);
   }
 
