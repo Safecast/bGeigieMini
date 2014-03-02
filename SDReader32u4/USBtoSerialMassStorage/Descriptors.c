@@ -1,13 +1,13 @@
 /*
              LUFA Library
-     Copyright (C) Dean Camera, 2012.
+     Copyright (C) Dean Camera, 2013.
 
   dean [at] fourwalledcubicle [dot] com
            www.lufa-lib.org
 */
 
 /*
-  Copyright 2012  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+  Copyright 2013  Dean Camera (dean [at] fourwalledcubicle [dot] com)
 
   Permission to use, copy, modify, distribute, and sell this
   software and its documentation for any purpose is hereby granted
@@ -18,7 +18,7 @@
   advertising or publicity pertaining to distribution of the
   software without specific, written prior permission.
 
-  The author disclaim all warranties with regard to this
+  The author disclaims all warranties with regard to this
   software, including all implied warranties of merchantability
   and fitness.  In no event shall the author be liable for any
   special, indirect or consequential damages or any damages
@@ -58,8 +58,8 @@ const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
 	.ProductID              = 0x2068,
 	.ReleaseNumber          = VERSION_BCD(00.01),
 
-	.ManufacturerStrIndex   = 0x01,
-	.ProductStrIndex        = 0x02,
+	.ManufacturerStrIndex   = STRING_ID_Manufacturer,
+	.ProductStrIndex        = STRING_ID_Product,
 	.SerialNumStrIndex      = USE_INTERNAL_SERIAL,
 
 	.NumberOfConfigurations = FIXED_NUM_CONFIGURATIONS
@@ -287,15 +287,15 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 		case DTYPE_String:
 			switch (DescriptorNumber)
 			{
-				case 0x00:
+				case STRING_ID_Language:
 					Address = &LanguageString;
 					Size    = pgm_read_byte(&LanguageString.Header.Size);
 					break;
-				case 0x01:
+				case STRING_ID_Manufacturer:
 					Address = &ManufacturerString;
 					Size    = pgm_read_byte(&ManufacturerString.Header.Size);
 					break;
-				case 0x02:
+				case STRING_ID_Product:
 					Address = &ProductString;
 					Size    = pgm_read_byte(&ProductString.Header.Size);
 					break;
